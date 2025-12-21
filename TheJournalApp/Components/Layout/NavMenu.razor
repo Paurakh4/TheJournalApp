@@ -1,0 +1,100 @@
+@inject IJSRuntime JS
+
+<nav class="nav-sidebar">
+    <!-- Brand Section -->
+    <div class="nav-brand">
+        <div class="brand-logo">
+            <div class="logo-glow"></div>
+            <i data-lucide="feather" class="brand-icon"></i>
+        </div>
+        <div class="brand-text">
+            <span class="brand-name">Mindful</span>
+            <span class="brand-tagline">Journal</span>
+        </div>
+    </div>
+
+    <!-- User Profile -->
+    <div class="nav-profile">
+        <div class="profile-avatar">
+            <span class="avatar-text">P</span>
+            <span class="profile-status"></span>
+        </div>
+        <div class="profile-info">
+            <span class="profile-name">Welcome back</span>
+            <span class="profile-greeting">@GetGreeting()</span>
+        </div>
+    </div>
+
+    <!-- Main Navigation -->
+    <div class="nav-section">
+        <span class="nav-section-title">Menu</span>
+        <div class="nav-menu">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <i data-lucide="layout-dashboard" class="nav-link-icon"></i>
+                <span class="nav-link-text">Dashboard</span>
+            </NavLink>
+
+            <NavLink class="nav-link" href="entries">
+                <i data-lucide="book-text" class="nav-link-icon"></i>
+                <span class="nav-link-text">My Entries</span>
+            </NavLink>
+
+            <NavLink class="nav-link" href="calendar">
+                <i data-lucide="calendar-days" class="nav-link-icon"></i>
+                <span class="nav-link-text">Calendar</span>
+            </NavLink>
+
+            <NavLink class="nav-link" href="analytics">
+                <i data-lucide="trending-up" class="nav-link-icon"></i>
+                <span class="nav-link-text">Analytics</span>
+            </NavLink>
+        </div>
+    </div>
+
+    <!-- Settings Section -->
+    <div class="nav-section">
+        <span class="nav-section-title">Preferences</span>
+        <div class="nav-menu">
+            <NavLink class="nav-link" href="settings">
+                <i data-lucide="sliders" class="nav-link-icon"></i>
+                <span class="nav-link-text">Settings</span>
+            </NavLink>
+        </div>
+    </div>
+
+    <!-- New Entry CTA -->
+    <div class="nav-cta">
+        <NavLink class="cta-button" href="editor">
+            <i data-lucide="plus" class="cta-icon"></i>
+            <span class="cta-text">New Entry</span>
+        </NavLink>
+    </div>
+
+    <!-- Footer -->
+    <div class="nav-footer">
+        <div class="footer-streak">
+            <i data-lucide="flame" class="streak-icon"></i>
+            <span class="streak-count">Keep writing!</span>
+        </div>
+    </div>
+</nav>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("lucide.createIcons");
+        }
+    }
+
+    private string GetGreeting()
+    {
+        var hour = DateTime.Now.Hour;
+        if (hour < 12)
+            return "Good morning!";
+        if (hour < 17)
+            return "Good afternoon!";
+        return "Good evening!";
+    }
+}

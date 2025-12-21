@@ -1,0 +1,135 @@
+/* ============================================
+   MAIN LAYOUT
+   Premium app layout with dark sidebar
+   ============================================ */
+
+.app-layout {
+    display: flex;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background: linear-gradient(135deg, #FAFBFC 0%, #F1F5F9 100%);
+}
+
+/* Sidebar Container */
+.sidebar {
+    width: 280px;
+    min-width: 280px;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    flex-shrink: 0;
+    z-index: 100;
+    background: linear-gradient(180deg, #0F172A 0%, #1E293B 100%);
+    box-shadow: 
+        4px 0 24px rgba(15, 23, 42, 0.15),
+        1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Custom scrollbar for sidebar */
+.sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Main Content Area */
+.main-content {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100vh;
+    position: relative;
+}
+
+/* Subtle decorative element */
+.main-content::before {
+    content: '';
+    position: fixed;
+    top: -200px;
+    right: -200px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(15, 216, 80, 0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.main-content::after {
+    content: '';
+    position: fixed;
+    bottom: -150px;
+    left: 200px;
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(249, 240, 71, 0.04) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Content Wrapper */
+.content-wrapper {
+    padding: 2.5rem 3rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 1200px) {
+    .content-wrapper {
+        padding: 2rem 2rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .app-layout {
+        flex-direction: column;
+    }
+    
+    .sidebar {
+        width: 100%;
+        min-width: 100%;
+        height: auto;
+        position: relative;
+        box-shadow: 
+            0 4px 20px rgba(15, 23, 42, 0.15),
+            0 1px 0 rgba(255, 255, 255, 0.05);
+    }
+    
+    .main-content {
+        height: auto;
+        min-height: calc(100vh - 80px);
+    }
+    
+    .main-content::before,
+    .main-content::after {
+        display: none;
+    }
+    
+    .content-wrapper {
+        padding: 1.5rem 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .content-wrapper {
+        padding: 1rem 0.75rem;
+    }
+}

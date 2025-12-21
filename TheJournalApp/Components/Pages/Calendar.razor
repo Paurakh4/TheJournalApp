@@ -1,0 +1,441 @@
+@page "/calendar"
+@using TheJournalApp.Services
+@using TheJournalApp.Data.Entities
+@inject JournalService JournalService
+@inject NavigationManager NavigationManager
+
+<div class="calendar-page">
+    <div class="page-header">
+        <h1 class="page-title">Calendar</h1>
+        <p class="page-subtitle">Visual history of your moods</p>
+    </div>
+    
+    <!-- Month Navigation -->
+    <div class="calendar-nav">
+        <button class="btn btn-ghost" @onclick="PreviousMonth">← Previous</button>
+        <h2 class="current-month">@currentDate.ToString("MMMM yyyy")</h2>
+        <button class="btn btn-ghost" @onclick="NextMonth">Next →</button>
+    </div>
+    
+    <!-- Legend -->
+    <div class="mood-legend">
+        <div class="legend-item">
+            <span class="legend-dot mood-bg-happy"></span>
+            <span>Happy</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot mood-bg-neutral"></span>
+            <span>Neutral</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot mood-bg-sad"></span>
+            <span>Sad</span>
+        </div>
+        <div class="legend-item">
+            <span class="legend-dot no-entry"></span>
+            <span>No Entry</span>
+        </div>
+    </div>
+    
+    <!-- Calendar Grid -->
+    <div class="calendar-container card">
+        <div class="calendar-grid">
+            <!-- Header Row -->
+            @foreach (var day in daysOfWeek)
+            {
+                <div class="calendar-header-cell">@day</div>
+            }
+            
+            <!-- Empty cells for padding -->
+            @for (int i = 0; i < GetFirstDayOffset(); i++)
+            {
+                <div class="calendar-cell empty"></div>
+            }
+            
+            <!-- Day cells -->
+            @for (int day = 1; day <= GetDaysInMonth(); day++)
+            {
+                var currentDay = day;
+                var date = new DateTime(currentDate.Year, currentDate.Month, currentDay);
+                var entry = GetEntryForDate(date);
+                var isToday = date.Date == DateTime.Today;
+                
+                <div class="calendar-cell @(entry != null ? GetMoodClass(entry) : "") @(isToday ? "today" : "")"
+                     @onclick="() => OnDayClick(date, entry)">
+                    <span class="calendar-day">@currentDay</span>
+                    @if (entry != null)
+                    {
+                        <span class="calendar-mood">@entry.PrimaryMood.Emoji</span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+    
+    <!-- Stats Summary -->
+    <div class="calendar-stats">
+        <div class="card stat-mini">
+            <div class="stat-mini-value">@GetMoodCount(MoodCategory.Positive)</div>
+            <div class="stat-mini-label">😊 Happy Days</div>
+        </div>
+        <div class="card stat-mini">
+            <div class="stat-mini-value">@GetMoodCount(MoodCategory.Neutral)</div>
+            <div class="stat-mini-label">😐 Neutral Days</div>
+        </div>
+        <div class="card stat-mini">
+            <div class="stat-mini-value">@GetMoodCount(MoodCategory.Negative)</div>
+            <div class="stat-mini-label">😔 Sad Days</div>
+        </div>
+        <div class="card stat-mini">
+            <div class="stat-mini-value">@GetEntriesThisMonth()</div>
+            <div class="stat-mini-label">Total Entries</div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .calendar-page {
+        max-width: 940px;
+        animation: fadeInUp 0.4s ease-out;
+    }
+    
+    @@keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(16px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .calendar-nav {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.25rem;
+        padding: 0.5rem;
+    }
+    
+    .calendar-nav .btn-ghost {
+        font-weight: 600;
+        color: #64748B;
+        padding: 0.625rem 1rem;
+        border-radius: 10px;
+    }
+    
+    .calendar-nav .btn-ghost:hover {
+        background: #F1F5F9;
+        color: #6366F1;
+    }
+    
+    .current-month {
+        font-size: 1.375rem;
+        font-weight: 800;
+        margin: 0;
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, #0F172A 0%, #475569 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .mood-legend {
+        display: flex;
+        gap: 2rem;
+        margin-bottom: 1.75rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+    
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.625rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: #64748B;
+    }
+    
+    .legend-dot {
+        width: 18px;
+        height: 18px;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+    }
+    
+    .legend-dot.mood-bg-happy {
+        background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+        border: 1px solid #A7F3D0;
+    }
+    
+    .legend-dot.mood-bg-neutral {
+        background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+        border: 1px solid #FDE68A;
+    }
+    
+    .legend-dot.mood-bg-sad {
+        background: linear-gradient(135deg, #FFF1F2 0%, #FEE2E2 100%);
+        border: 1px solid #FECDD3;
+    }
+    
+    .legend-dot.no-entry {
+        background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+        border: 1px solid #E2E8F0;
+    }
+    
+    .calendar-container {
+        padding: 1.75rem;
+        background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+    }
+    
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 8px;
+    }
+    
+    .calendar-header-cell {
+        padding: 0.875rem;
+        text-align: center;
+        font-size: 0.75rem;
+        font-weight: 800;
+        color: #94A3B8;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        background-color: transparent;
+        border-radius: 8px;
+    }
+    
+    .calendar-cell {
+        aspect-ratio: 1;
+        padding: 0.5rem;
+        text-align: center;
+        background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 75px;
+        border: 2px solid transparent;
+        position: relative;
+    }
+    
+    .calendar-cell:hover:not(.empty) {
+        transform: scale(1.08);
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
+        z-index: 1;
+    }
+    
+    .calendar-cell.empty {
+        background: transparent;
+        cursor: default;
+    }
+    
+    .calendar-cell.today {
+        border-color: #6366F1;
+        background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
+        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+    }
+    
+    .calendar-cell.has-happy {
+        background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+        border-color: #A7F3D0;
+    }
+    
+    .calendar-cell.has-happy:hover {
+        box-shadow: 0 8px 20px rgba(16, 185, 129, 0.15);
+    }
+    
+    .calendar-cell.has-neutral {
+        background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+        border-color: #FDE68A;
+    }
+    
+    .calendar-cell.has-neutral:hover {
+        box-shadow: 0 8px 20px rgba(245, 158, 11, 0.15);
+    }
+    
+    .calendar-cell.has-sad {
+        background: linear-gradient(135deg, #FFF1F2 0%, #FEE2E2 100%);
+        border-color: #FECDD3;
+    }
+    
+    .calendar-cell.has-sad:hover {
+        box-shadow: 0 8px 20px rgba(244, 63, 94, 0.15);
+    }
+    
+    .calendar-day {
+        font-size: 0.9375rem;
+        font-weight: 700;
+        color: #475569;
+    }
+    
+    .calendar-cell.today .calendar-day {
+        color: #6366F1;
+    }
+    
+    .calendar-mood {
+        font-size: 1.375rem;
+        margin-top: 0.375rem;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+        transition: transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    
+    .calendar-cell:hover .calendar-mood {
+        transform: scale(1.2);
+    }
+    
+    .calendar-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+    
+    .calendar-stats .stat-mini {
+        text-align: center;
+        padding: 1.5rem 1rem;
+        background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .calendar-stats .stat-mini::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 70px;
+        height: 70px;
+        background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+        opacity: 0.04;
+        border-radius: 50%;
+        transform: translate(30%, -30%);
+    }
+    
+    .stat-mini-value {
+        font-size: 2rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .stat-mini-label {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #64748B;
+        margin-top: 0.375rem;
+    }
+    
+    @@media (max-width: 640px) {
+        .calendar-stats {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .calendar-grid {
+            gap: 4px;
+        }
+        
+        .calendar-cell {
+            min-height: 55px;
+            border-radius: 8px;
+        }
+        
+        .calendar-day {
+            font-size: 0.8125rem;
+        }
+        
+        .calendar-mood {
+            font-size: 1.125rem;
+        }
+        
+        .mood-legend {
+            gap: 1rem;
+        }
+    }
+</style>
+
+@code {
+    private DateTime currentDate = DateTime.Today;
+    private string[] daysOfWeek = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+    private List<JournalEntry> _entries = new();
+    private bool _isLoading = true;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await JournalService.EnsureUserExistsAsync();
+        await LoadEntriesAsync();
+    }
+    
+    private async Task LoadEntriesAsync()
+    {
+        _isLoading = true;
+        _entries = await JournalService.GetEntriesForMonthAsync(currentDate.Year, currentDate.Month);
+        _isLoading = false;
+    }
+    
+    private int GetFirstDayOffset()
+    {
+        var firstDay = new DateTime(currentDate.Year, currentDate.Month, 1);
+        return (int)firstDay.DayOfWeek;
+    }
+    
+    private int GetDaysInMonth()
+    {
+        return DateTime.DaysInMonth(currentDate.Year, currentDate.Month);
+    }
+    
+    private JournalEntry? GetEntryForDate(DateTime date)
+    {
+        var dateOnly = DateOnly.FromDateTime(date);
+        return _entries.FirstOrDefault(e => e.EntryDate == dateOnly);
+    }
+    
+    private string GetMoodClass(JournalEntry entry)
+    {
+        return entry.PrimaryMood.Category switch
+        {
+            MoodCategory.Positive => "has-happy",
+            MoodCategory.Neutral => "has-neutral",
+            MoodCategory.Negative => "has-sad",
+            _ => ""
+        };
+    }
+    
+    private int GetMoodCount(MoodCategory category)
+    {
+        return _entries.Count(e => e.PrimaryMood.Category == category);
+    }
+    
+    private int GetEntriesThisMonth()
+    {
+        return _entries.Count;
+    }
+    
+    private async Task PreviousMonth()
+    {
+        currentDate = currentDate.AddMonths(-1);
+        await LoadEntriesAsync();
+    }
+    
+    private async Task NextMonth()
+    {
+        currentDate = currentDate.AddMonths(1);
+        await LoadEntriesAsync();
+    }
+    
+    private void OnDayClick(DateTime date, JournalEntry? entry)
+    {
+        if (entry != null)
+            NavigationManager.NavigateTo($"/editor/{entry.EntryId}");
+        else if (date.Date <= DateTime.Today)
+            NavigationManager.NavigateTo("/editor");
+    }
+}

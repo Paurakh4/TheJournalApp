@@ -1,0 +1,128 @@
+@page "/"
+@using TheJournalApp.Services
+@using TheJournalApp.Data.Entities
+@inject JournalService JournalService
+@inject NavigationManager NavigationManager
+
+<div class="dashboard">
+    <div class="page-header">
+        <h1 class="page-title">@GetGreeting(), @_username!</h1>
+        <p class="page-subtitle">@DateTime.Now.ToString("dddd, MMMM d")</p>
+    </div>
+    
+    <div class="streak-widget mb-3">
+        <span class="streak-icon">🔥</span>
+        <div>
+            <div class="streak-count">@_streakCount Day Streak</div>
+            <div class="streak-label">Keep up the great work!</div>
+        </div>
+    </div>
+    
+    @if (!_hasTodayEntry)
+    {
+        <div class="card mood-checkin">
+            <h3>How are you feeling today?</h3>
+            <p class="text-muted">Take a moment to check in with yourself</p>
+            
+            <div class="mood-selector-large">
+                @foreach (var mood in _quickMoods)
+                {
+                    <button class="mood-btn" @onclick="@(() => StartEntryWithMood(mood.MoodId))">
+                        <span class="emoji">@mood.Emoji</span>
+                        <span class="label">@mood.Name</span>
+                    </button>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card today-summary">
+            <div class="card-header">
+                <h3 class="card-title">Today's Entry</h3>
+                <a href="editor" class="btn btn-secondary btn-sm">Edit</a>
+            </div>
+            <div class="summary-content">
+                <span class="summary-mood">@_todayMoodEmoji</span>
+                <p class="summary-preview">@_todayPreview</p>
+            </div>
+        </div>
+    }
+    
+    <div class="quick-stats">
+        <div class="card stat-mini">
+            <div class="stat-mini-value">@_totalEntries</div>
+            <div class="stat-mini-label">Total Entries</div>
+        </div>
+        <div class="card stat-mini">
+            <div class="stat-mini-value">@_thisWeekEntries</div>
+            <div class="stat-mini-label">This Week</div>
+        </div>
+        <div class="card stat-mini">
+            <div class="stat-mini-value">@_dominantMood</div>
+            <div class="stat-mini-label">Most Common</div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private int _streakCount = 0;
+    private bool _hasTodayEntry = false;
+    private string _todayMoodEmoji = "😐";
+    private string _todayPreview = "";
+    private int _totalEntries = 0;
+    private int _thisWeekEntries = 0;
+    private string _dominantMood = "😐";
+    private string _username = "User";
+    private List<Mood> _quickMoods = new();
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await JournalService.EnsureUserExistsAsync();
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _isLoading = true;
+        
+        var user = await JournalService.GetCurrentUserAsync();
+        _username = user?.Username ?? "User";
+        
+        var streak = await JournalService.GetStreakAsync();
+        _streakCount = streak?.CurrentStreak ?? 0;
+        
+        var todayEntry = await JournalService.GetTodayEntryAsync();
+        _hasTodayEntry = todayEntry != null;
+        if (todayEntry != null)
+        {
+            _todayMoodEmoji = todayEntry.PrimaryMood?.Emoji ?? "😐";
+            _todayPreview = todayEntry.Content.Length > 150 
+                ? todayEntry.Content[..150] + "..." 
+                : todayEntry.Content;
+        }
+        
+        _totalEntries = await JournalService.GetTotalEntriesCountAsync();
+        _thisWeekEntries = await JournalService.GetThisWeekEntriesCountAsync();
+        _dominantMood = await JournalService.GetDominantMoodEmojiAsync();
+        
+        var allMoods = await JournalService.GetAllMoodsAsync();
+        _quickMoods = allMoods.Where(m => m.Name == "Happy" || m.Name == "Neutral" || m.Name == "Sad").ToList();
+        
+        _isLoading = false;
+    }
+    
+    private string GetGreeting()
+    {
+        var hour = DateTime.Now.Hour;
+        if (hour < 12) return "Good Morning";
+        if (hour < 17) return "Good Afternoon";
+        return "Good Evening";
+    }
+    
+    private void StartEntryWithMood(int moodId)
+    {
+        NavigationManager.NavigateTo($"/editor?mood={moodId}");
+    }
+}

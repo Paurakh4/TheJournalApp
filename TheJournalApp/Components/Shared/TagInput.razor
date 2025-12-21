@@ -1,0 +1,146 @@
+@* TagInput Component - Input field for creating and managing tag chips *@
+
+<div class="tag-input-container">
+    <div class="selected-tags">
+        @foreach (var tag in SelectedTags)
+        {
+            <span class="chip">
+                @tag
+                <button type="button" class="chip-remove" @onclick="() => RemoveTag(tag)">×</button>
+            </span>
+        }
+    </div>
+    
+    <div class="tag-input-wrapper">
+        <input type="text" 
+               class="form-input tag-input"
+               placeholder="@Placeholder"
+               @bind="inputValue"
+               @bind:event="oninput"
+               @onkeydown="HandleKeyDown" />
+        
+        @if (!string.IsNullOrWhiteSpace(inputValue) && FilteredSuggestions.Any())
+        {
+            <div class="tag-suggestions">
+                @foreach (var suggestion in FilteredSuggestions)
+                {
+                    <button type="button" 
+                            class="tag-suggestion" 
+                            @onclick="() => AddTag(suggestion)">
+                        @suggestion
+                    </button>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .tag-input-container {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    
+    .selected-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .tag-input-wrapper {
+        position: relative;
+    }
+    
+    .tag-input {
+        width: 100%;
+    }
+    
+    .tag-suggestions {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: #FFFFFF;
+        border: 1px solid #E5E7EB;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        margin-top: 4px;
+        max-height: 200px;
+        overflow-y: auto;
+        z-index: 10;
+    }
+    
+    .tag-suggestion {
+        display: block;
+        width: 100%;
+        padding: 0.5rem 1rem;
+        text-align: left;
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 0.9375rem;
+        color: #374151;
+    }
+    
+    .tag-suggestion:hover {
+        background-color: #F3F4F6;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public List<string> SelectedTags { get; set; } = new();
+    
+    [Parameter]
+    public EventCallback<List<string>> SelectedTagsChanged { get; set; }
+    
+    [Parameter]
+    public List<string> AvailableTags { get; set; } = new()
+    {
+        "Work", "Personal", "Health", "Studies", "Family", 
+        "Friends", "Hobbies", "Exercise", "Travel", "Goals"
+    };
+    
+    [Parameter]
+    public string Placeholder { get; set; } = "Add a tag...";
+    
+    [Parameter]
+    public int MaxTags { get; set; } = 5;
+    
+    private string inputValue = "";
+    
+    private IEnumerable<string> FilteredSuggestions => 
+        AvailableTags
+            .Where(t => !SelectedTags.Contains(t) && 
+                        t.Contains(inputValue, StringComparison.OrdinalIgnoreCase))
+            .Take(5);
+    
+    private async Task AddTag(string tag)
+    {
+        if (SelectedTags.Count >= MaxTags) return;
+        if (SelectedTags.Contains(tag)) return;
+        
+        SelectedTags.Add(tag);
+        inputValue = "";
+        await SelectedTagsChanged.InvokeAsync(SelectedTags);
+    }
+    
+    private async Task RemoveTag(string tag)
+    {
+        SelectedTags.Remove(tag);
+        await SelectedTagsChanged.InvokeAsync(SelectedTags);
+    }
+    
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(inputValue))
+        {
+            var existingTag = AvailableTags.FirstOrDefault(t => 
+                t.Equals(inputValue, StringComparison.OrdinalIgnoreCase));
+            
+            var tagToAdd = existingTag ?? inputValue.Trim();
+            await AddTag(tagToAdd);
+        }
+    }
+}

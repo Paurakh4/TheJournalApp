@@ -1,0 +1,47 @@
+@* MoodSelector Component - Emoji picker for mood selection *@
+
+<div class="mood-selector">
+    @foreach (var mood in Moods)
+    {
+        <button type="button" 
+                class="mood-option @(SelectedMood == mood.Value ? "selected" : "")"
+                @onclick="() => SelectMood(mood.Value)">
+            <span class="mood-emoji">@mood.Emoji</span>
+            <span class="mood-label">@mood.Label</span>
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public string? SelectedMood { get; set; }
+    
+    [Parameter]
+    public EventCallback<string> SelectedMoodChanged { get; set; }
+    
+    [Parameter]
+    public bool ShowLabels { get; set; } = true;
+    
+    [Parameter]
+    public bool LargeSize { get; set; } = false;
+
+    private List<MoodOption> Moods = new()
+    {
+        new MoodOption { Value = "happy", Emoji = "😊", Label = "Happy" },
+        new MoodOption { Value = "neutral", Emoji = "😐", Label = "Neutral" },
+        new MoodOption { Value = "sad", Emoji = "😔", Label = "Sad" }
+    };
+    
+    private async Task SelectMood(string mood)
+    {
+        SelectedMood = mood;
+        await SelectedMoodChanged.InvokeAsync(mood);
+    }
+    
+    private class MoodOption
+    {
+        public string Value { get; set; } = "";
+        public string Emoji { get; set; } = "";
+        public string Label { get; set; } = "";
+    }
+}

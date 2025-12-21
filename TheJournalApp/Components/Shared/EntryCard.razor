@@ -1,0 +1,71 @@
+@* EntryCard Component - Individual journal entry card display *@
+
+<div class="entry-card">
+    <div class="entry-mood">
+        @GetMoodEmoji(Mood)
+    </div>
+    
+    <div class="entry-content">
+        <div class="entry-date">@Date.ToString("dddd, MMMM d, yyyy")</div>
+        <p class="entry-preview">@Preview</p>
+        
+        @if (Tags?.Any() == true)
+        {
+            <div class="entry-tags">
+                @foreach (var tag in Tags)
+                {
+                    <span class="chip">@tag</span>
+                }
+            </div>
+        }
+    </div>
+    
+    <div class="entry-actions">
+        <button class="btn btn-ghost btn-icon" title="Edit" @onclick="OnEdit">
+            ✏️
+        </button>
+        <button class="btn btn-ghost btn-icon" title="Delete" @onclick="OnDelete">
+            🗑️
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+    
+    [Parameter]
+    public DateTime Date { get; set; }
+    
+    [Parameter]
+    public string Mood { get; set; } = "neutral";
+    
+    [Parameter]
+    public string Preview { get; set; } = "";
+    
+    [Parameter]
+    public List<string>? Tags { get; set; }
+    
+    [Parameter]
+    public EventCallback<int> OnEditClicked { get; set; }
+    
+    [Parameter]
+    public EventCallback<int> OnDeleteClicked { get; set; }
+    
+    private string GetMoodEmoji(string mood) => mood switch
+    {
+        "happy" => "😊",
+        "sad" => "😔",
+        _ => "😐"
+    };
+    
+    private async Task OnEdit()
+    {
+        await OnEditClicked.InvokeAsync(Id);
+    }
+    
+    private async Task OnDelete()
+    {
+        await OnDeleteClicked.InvokeAsync(Id);
+    }
+}

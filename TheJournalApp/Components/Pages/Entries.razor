@@ -10,6 +10,26 @@
         <p class="page-subtitle">Browse and manage your journal entries</p>
     </div>
     
+    @if (_isLoading)
+    {
+        <div class="loading-skeleton">
+            <div class="skeleton-search-filters">
+                <div class="skeleton-search"></div>
+                <div class="skeleton-filter"></div>
+                <div class="skeleton-filter"></div>
+                <div class="skeleton-filter"></div>
+            </div>
+            <div class="skeleton-entries-list">
+                <div class="skeleton-entry-card"></div>
+                <div class="skeleton-entry-card"></div>
+                <div class="skeleton-entry-card"></div>
+                <div class="skeleton-entry-card"></div>
+                <div class="skeleton-entry-card"></div>
+            </div>
+        </div>
+    }
+    else
+    {
     <!-- Search & Filter Bar -->
     <div class="search-filters">
         <div class="search-input-wrapper">
@@ -18,7 +38,8 @@
                    class="search-input" 
                    placeholder="Search journal content..."
                    @bind="searchQuery"
-                   @bind:event="oninput" />
+                   @bind:event="oninput"
+                   @bind:after="LoadEntriesAsync" />
         </div>
         
         <select class="filter-select" @bind="moodFilter" @bind:after="LoadEntriesAsync">
@@ -36,7 +57,72 @@
                 <option value="@tag.TagId">@tag.Name</option>
             }
         </select>
+        
+        <button class="filter-toggle-btn @(showDateFilter ? "active" : "")" @onclick="ToggleDateFilter">
+            📅 Date Range
+            @if (hasActiveDateFilter)
+            {
+                <span class="filter-badge">1</span>
+            }
+        </button>
     </div>
+    
+    <!-- Advanced Date Range Filter -->
+    @if (showDateFilter)
+    {
+        <div class="date-range-panel">
+            <div class="date-presets">
+                <button class="preset-btn @GetPresetClass("all")" @onclick="@(() => ApplyDatePreset(PresetAll))">
+                    All Time
+                </button>
+                <button class="preset-btn @GetPresetClass("today")" @onclick="@(() => ApplyDatePreset(PresetToday))">
+                    Today
+                </button>
+                <button class="preset-btn @GetPresetClass("week")" @onclick="@(() => ApplyDatePreset(PresetWeek))">
+                    This Week
+                </button>
+                <button class="preset-btn @GetPresetClass("month")" @onclick="@(() => ApplyDatePreset(PresetMonth))">
+                    This Month
+                </button>
+                <button class="preset-btn @GetPresetClass("3months")" @onclick="@(() => ApplyDatePreset(Preset3Months))">
+                    Last 3 Months
+                </button>
+                <button class="preset-btn @GetPresetClass("year")" @onclick="@(() => ApplyDatePreset(PresetYear))">
+                    This Year
+                </button>
+                <button class="preset-btn @GetPresetClass("custom")" @onclick="@(() => ApplyDatePreset(PresetCustom))">
+                    Custom
+                </button>
+            </div>
+            
+            <div class="date-inputs">
+                <div class="date-input-group">
+                    <label>From</label>
+                    <input type="date" 
+                           class="date-input" 
+                           value="@(startDate?.ToString("yyyy-MM-dd"))"
+                           max="@(endDate?.ToString("yyyy-MM-dd") ?? DateTime.Today.ToString("yyyy-MM-dd"))"
+                           @onchange="OnStartDateChanged" />
+                </div>
+                <span class="date-separator">→</span>
+                <div class="date-input-group">
+                    <label>To</label>
+                    <input type="date" 
+                           class="date-input" 
+                           value="@(endDate?.ToString("yyyy-MM-dd"))"
+                           min="@(startDate?.ToString("yyyy-MM-dd"))"
+                           max="@DateTime.Today.ToString("yyyy-MM-dd")"
+                           @onchange="OnEndDateChanged" />
+                </div>
+                @if (hasActiveDateFilter)
+                {
+                    <button class="clear-dates-btn" @onclick="ClearDateFilter">
+                        ✕ Clear
+                    </button>
+                }
+            </div>
+        </div>
+    }
     
     <!-- Entries List -->
     <div class="entries-list">
@@ -44,13 +130,13 @@
         {
             @foreach (var entry in GetPagedEntries())
             {
-                <div class="entry-card">
-                    <div class="entry-mood">
-                        @entry.PrimaryMood.Emoji
+                <div class="entry-card" @onclick="() => OpenEntryModal(entry)">
+                    <div class="entry-mood-circle">
+                        <span class="entry-mood">@entry.PrimaryMood.Emoji</span>
                     </div>
                     
                     <div class="entry-content">
-                        <div class="entry-date">@entry.EntryDate.ToDateTime(TimeOnly.MinValue).ToString("dddd, MMMM d, yyyy")</div>
+                        <h3 class="entry-date">@entry.EntryDate.ToDateTime(TimeOnly.MinValue).ToString("dddd, MMMM d, yyyy")</h3>
                         <p class="entry-preview">@GetPreview(entry.Content)</p>
                         
                         @if (entry.EntryTags?.Any() == true)
@@ -58,13 +144,13 @@
                             <div class="entry-tags">
                                 @foreach (var et in entry.EntryTags)
                                 {
-                                    <span class="chip">@et.Tag.Name</span>
+                                    <span class="entry-tag">@et.Tag.Name</span>
                                 }
                             </div>
                         }
                     </div>
                     
-                    <div class="entry-actions">
+                    <div class="entry-actions" @onclick:stopPropagation="true">
                         <button class="btn btn-ghost btn-icon" title="Edit" @onclick="() => EditEntry(entry.EntryId)">
                             ✏️
                         </button>
@@ -81,7 +167,7 @@
                 <div class="empty-icon">📝</div>
                 <div class="empty-title">No entries found</div>
                 <div class="empty-description">
-                    @if (!string.IsNullOrEmpty(searchQuery) || moodFilter > 0 || tagFilter > 0)
+                    @if (!string.IsNullOrEmpty(searchQuery) || moodFilter > 0 || tagFilter > 0 || hasActiveDateFilter)
                     {
                         <span>Try adjusting your search or filters</span>
                     }
@@ -96,31 +182,104 @@
     </div>
     
     <!-- Pagination -->
-    @if (totalPages > 1)
+    @if (totalPages >= 1)
     {
         <div class="pagination">
-            <button class="btn btn-secondary btn-sm" 
-                    disabled="@(currentPage == 1)"
-                    @onclick="PreviousPage">
-                Previous
-            </button>
-            <span class="pagination-info">Page @currentPage of @totalPages</span>
-            <button class="btn btn-secondary btn-sm" 
-                    disabled="@(currentPage == totalPages)"
-                    @onclick="NextPage">
-                Next
-            </button>
+            <div class="pagination-info">
+                Showing <strong>@(((currentPage - 1) * pageSize) + 1)</strong> to <strong>@Math.Min(currentPage * pageSize, filteredEntries.Count())</strong> of <strong>@filteredEntries.Count()</strong> entries
+            </div>
+            <div class="pagination-controls">
+                <button class="page-btn nav-btn" 
+                        disabled="@(currentPage == 1)"
+                        @onclick="PreviousPage">
+                    <span>&lt;</span>
+                </button>
+                
+                @foreach (var pageNum in GetPageNumbers())
+                {
+                    @if (pageNum == -1)
+                    {
+                        <span class="page-ellipsis">...</span>
+                    }
+                    else
+                    {
+                        <button class="@GetPageBtnClass(pageNum)" 
+                                @onclick="@(() => GoToPage(pageNum))">
+                            @pageNum
+                        </button>
+                    }
+                }
+                
+                <button class="page-btn nav-btn" 
+                        disabled="@(currentPage == totalPages)"
+                        @onclick="NextPage">
+                    <span>&gt;</span>
+                </button>
+            </div>
         </div>
     }
+    }
 </div>
+
+<!-- Entry Detail Modal -->
+@if (showEntryModal && selectedEntry != null)
+{
+    <div class="modal-overlay" @onclick="CloseEntryModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <button class="modal-close" @onclick="CloseEntryModal">✕</button>
+            
+            <div class="modal-header">
+                <div class="modal-mood">
+                    @selectedEntry.PrimaryMood.Emoji
+                </div>
+                <div class="modal-header-info">
+                    <h2 class="modal-date">@selectedEntry.EntryDate.ToDateTime(TimeOnly.MinValue).ToString("dddd, MMMM d, yyyy")</h2>
+                    <div class="modal-mood-label">
+                        <span class="mood-badge @GetMoodCategoryClass(selectedEntry.PrimaryMood.Category)">@selectedEntry.PrimaryMood.Name</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-body">
+                <div class="modal-content-text">
+                    @((MarkupString)FormatContent(selectedEntry.Content))
+                </div>
+                
+                @if (selectedEntry.EntryTags?.Any() == true)
+                {
+                    <div class="modal-tags">
+                        <span class="tags-label">🏷️ Tags</span>
+                        <div class="tags-list">
+                            @foreach (var et in selectedEntry.EntryTags)
+                            {
+                                <span class="modal-tag">@et.Tag.Name</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+            
+            <div class="modal-footer">
+                <div class="modal-meta">
+                    <span class="meta-item">📝 @selectedEntry.WordCount words</span>
+                    <span class="meta-item">🕒 @selectedEntry.CreatedAt.ToLocalTime().ToString("h:mm tt")</span>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" @onclick="CloseEntryModal">Close</button>
+                    <button class="btn btn-primary" @onclick="() => EditEntry(selectedEntry.EntryId)">✏️ Edit Entry</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
 
 <style>
     .entries-page {
         max-width: 940px;
-        animation: fadeInUp 0.4s ease-out;
+        animation: pageEnter 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
     }
     
-    @@keyframes fadeInUp {
+    @@keyframes pageEnter {
         from {
             opacity: 0;
             transform: translateY(16px);
@@ -136,6 +295,68 @@
         gap: 1rem;
         margin-bottom: 2rem;
         flex-wrap: wrap;
+        animation: filtersSlideIn 0.4s ease forwards;
+        animation-delay: 0.1s;
+        opacity: 0;
+    }
+    
+    @@keyframes filtersSlideIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .loading-skeleton {
+        animation: skeletonFadeIn 0.3s ease;
+    }
+    
+    @@keyframes skeletonFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .skeleton-search-filters {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+    }
+    
+    .skeleton-search {
+        flex: 1;
+        min-width: 260px;
+        height: 52px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 12px;
+    }
+    
+    .skeleton-filter {
+        width: 150px;
+        height: 52px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 12px;
+    }
+    
+    .skeleton-entries-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    .skeleton-entry-card {
+        height: 120px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 16px;
+    }
+    
+    @@keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
     }
     
     .search-input-wrapper {
@@ -151,6 +372,13 @@
         transform: translateY(-50%);
         font-size: 1rem;
         filter: grayscale(0.5);
+        transition: filter 0.2s ease, transform 0.2s ease;
+    }
+    
+    .search-input:focus ~ .search-icon,
+    .search-input-wrapper:focus-within .search-icon {
+        filter: grayscale(0);
+        transform: translateY(-50%) scale(1.1);
     }
     
     .search-input {
@@ -160,7 +388,7 @@
         border-radius: 12px;
         font-size: 0.9375rem;
         background-color: #FFFFFF;
-        transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+        transition: border-color 0.2s ease, box-shadow 0.25s ease, background-color 0.2s ease;
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     }
     
@@ -170,8 +398,8 @@
     
     .search-input:focus {
         outline: none;
-        border-color: #6366F1;
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12), 0 1px 2px rgba(15, 23, 42, 0.04);
+        border-color: #0fd850;
+        box-shadow: 0 0 0 3px rgba(15, 216, 80, 0.12), 0 1px 2px rgba(15, 23, 42, 0.04);
     }
     
     .filter-select {
@@ -182,7 +410,7 @@
         background-color: #FFFFFF;
         min-width: 150px;
         cursor: pointer;
-        transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+        transition: border-color 0.2s ease, box-shadow 0.25s ease;
         box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     }
     
@@ -192,8 +420,169 @@
     
     .filter-select:focus {
         outline: none;
-        border-color: #6366F1;
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+        border-color: #0fd850;
+        box-shadow: 0 0 0 3px rgba(15, 216, 80, 0.12);
+    }
+    
+    .filter-toggle-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.875rem 1.25rem;
+        border: 1.5px solid #E2E8F0;
+        border-radius: 12px;
+        font-size: 0.9375rem;
+        background-color: #FFFFFF;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        position: relative;
+    }
+    
+    .filter-toggle-btn:hover {
+        border-color: #94A3B8;
+        background: #F8FAFC;
+    }
+    
+    .filter-toggle-btn.active {
+        border-color: #0fd850;
+        background: linear-gradient(135deg, #E8FDF0 0%, #D1FAE5 100%);
+        color: #059669;
+    }
+    
+    .filter-badge {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        width: 20px;
+        height: 20px;
+        background: #0fd850;
+        color: white;
+        border-radius: 50%;
+        font-size: 0.75rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .date-range-panel {
+        background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+        border: 1.5px solid #E2E8F0;
+        border-radius: 16px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        animation: panelSlideIn 0.3s ease forwards;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+    }
+    
+    @@keyframes panelSlideIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .date-presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #F1F5F9;
+    }
+    
+    .preset-btn {
+        padding: 0.5rem 1rem;
+        border: 1px solid #E2E8F0;
+        border-radius: 20px;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        background: #FFFFFF;
+        color: #64748B;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .preset-btn:hover {
+        border-color: #CBD5E1;
+        background: #F8FAFC;
+        color: #0F172A;
+    }
+    
+    .preset-btn.active {
+        background: linear-gradient(135deg, #0fd850 0%, #0cb846 100%);
+        border-color: #0fd850;
+        color: white;
+        box-shadow: 0 2px 8px rgba(15, 216, 80, 0.3);
+    }
+    
+    .date-inputs {
+        display: flex;
+        align-items: flex-end;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    
+    .date-input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.375rem;
+    }
+    
+    .date-input-group label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #64748B;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    
+    .date-input {
+        padding: 0.75rem 1rem;
+        border: 1.5px solid #E2E8F0;
+        border-radius: 10px;
+        font-size: 0.9375rem;
+        background-color: #FFFFFF;
+        transition: all 0.2s ease;
+        min-width: 160px;
+    }
+    
+    .date-input:hover {
+        border-color: #94A3B8;
+    }
+    
+    .date-input:focus {
+        outline: none;
+        border-color: #0fd850;
+        box-shadow: 0 0 0 3px rgba(15, 216, 80, 0.12);
+    }
+    
+    .date-separator {
+        color: #94A3B8;
+        font-size: 1.25rem;
+        padding-bottom: 0.75rem;
+    }
+    
+    .clear-dates-btn {
+        padding: 0.75rem 1rem;
+        border: 1px solid #FCA5A5;
+        border-radius: 10px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        background: #FEF2F2;
+        color: #DC2626;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    
+    .clear-dates-btn:hover {
+        background: #FECACA;
+        border-color: #F87171;
     }
     
     .entries-list {
@@ -205,48 +594,64 @@
     .entry-card {
         display: flex;
         align-items: flex-start;
-        gap: 1.25rem;
-        padding: 1.5rem;
-        background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+        gap: 1.5rem;
+        padding: 1.75rem 2rem;
+        background: #FFFFFF;
         border-radius: 16px;
-        border: 1px solid rgba(226, 232, 240, 0.8);
-        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.02);
-        transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+        transition: transform 0.25s ease, 
+                    box-shadow 0.25s ease,
+                    border-color 0.2s ease;
         position: relative;
+        cursor: pointer;
+        animation: entryCardIn 0.4s ease forwards;
+        opacity: 0;
     }
     
-    .entry-card::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 4px;
-        background: linear-gradient(180deg, #6366F1 0%, #8B5CF6 100%);
-        border-radius: 16px 0 0 16px;
-        opacity: 0;
-        transition: opacity 200ms ease;
+    .entry-card:nth-child(1) { animation-delay: 0.15s; }
+    .entry-card:nth-child(2) { animation-delay: 0.2s; }
+    .entry-card:nth-child(3) { animation-delay: 0.25s; }
+    .entry-card:nth-child(4) { animation-delay: 0.3s; }
+    .entry-card:nth-child(5) { animation-delay: 0.35s; }
+    .entry-card:nth-child(n+6) { animation-delay: 0.4s; }
+    
+    @@keyframes entryCardIn {
+        from {
+            opacity: 0;
+            transform: translateY(12px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
     
     .entry-card:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
-        border-color: #E2E8F0;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+        border-color: #CBD5E1;
     }
     
-    .entry-card:hover::before {
-        opacity: 1;
+    .entry-mood-circle {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: transform 0.3s ease;
+    }
+    
+    .entry-card:hover .entry-mood-circle {
+        transform: scale(1.05);
     }
     
     .entry-mood {
-        font-size: 3rem;
-        flex-shrink: 0;
-        filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.08));
-        transition: transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
-    }
-    
-    .entry-card:hover .entry-mood {
-        transform: scale(1.1);
+        font-size: 1.75rem;
+        line-height: 1;
     }
     
     .entry-content {
@@ -256,9 +661,9 @@
     
     .entry-date {
         font-weight: 700;
-        font-size: 0.9375rem;
+        font-size: 1.125rem;
         color: #0F172A;
-        margin-bottom: 0.5rem;
+        margin: 0 0 0.5rem 0;
         letter-spacing: -0.01em;
     }
     
@@ -268,7 +673,7 @@
         -webkit-line-clamp: 2;
         -webkit-box-orient: vertical;
         overflow: hidden;
-        margin: 0 0 0.875rem;
+        margin: 0 0 1rem;
         line-height: 1.6;
         font-size: 0.9375rem;
     }
@@ -279,11 +684,22 @@
         gap: 0.5rem;
     }
     
-    .entry-tags .chip {
-        background: linear-gradient(135deg, #F1F5F9 0%, #E2E8F0 100%);
-        border: none;
-        font-size: 0.75rem;
-        padding: 0.25rem 0.625rem;
+    .entry-tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.375rem 0.875rem;
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 999px;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: #475569;
+        transition: all 0.2s ease;
+    }
+    
+    .entry-tag:hover {
+        background: #F1F5F9;
+        border-color: #CBD5E1;
     }
     
     .entry-actions {
@@ -291,11 +707,13 @@
         gap: 0.375rem;
         flex-shrink: 0;
         opacity: 0;
-        transition: opacity 200ms ease;
+        transform: translateX(8px);
+        transition: opacity 0.2s ease, transform 0.25s ease;
     }
     
     .entry-card:hover .entry-actions {
         opacity: 1;
+        transform: translateX(0);
     }
     
     .entry-actions .btn-icon {
@@ -332,8 +750,7 @@
     .pagination {
         display: flex;
         align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
+        justify-content: space-between;
         margin-top: 2.5rem;
         padding-top: 1.5rem;
         border-top: 1px solid #F1F5F9;
@@ -341,9 +758,66 @@
     
     .pagination-info {
         color: #64748B;
-        font-size: 0.875rem;
-        font-weight: 500;
-        padding: 0 1.25rem;
+        font-size: 0.9rem;
+    }
+    
+    .pagination-info strong {
+        color: #0F172A;
+        font-weight: 700;
+    }
+    
+    .pagination-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .page-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        border: 1px solid #E2E8F0;
+        background: #FFFFFF;
+        color: #64748B;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+    
+    .page-btn:hover:not(:disabled):not(.active) {
+        border-color: #CBD5E1;
+        background: #F8FAFC;
+        color: #0F172A;
+    }
+    
+    .page-btn.active {
+        background: #0fd850;
+        border-color: #0fd850;
+        color: #FFFFFF;
+        box-shadow: 0 4px 12px rgba(15, 216, 80, 0.3);
+    }
+    
+    .page-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+    
+    .page-btn.nav-btn {
+        background: #F8FAFC;
+    }
+    
+    .page-ellipsis {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #94A3B8;
+        font-weight: 600;
     }
     
     @@media (max-width: 640px) {
@@ -359,16 +833,310 @@
             width: 100%;
         }
         
+        .filter-toggle-btn {
+            width: 100%;
+            justify-content: center;
+        }
+        
+        .date-inputs {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        
+        .date-input {
+            width: 100%;
+            min-width: unset;
+        }
+        
+        .date-separator {
+            display: none;
+        }
+        
         .entry-card {
             padding: 1.25rem;
+            gap: 1rem;
+        }
+        
+        .entry-mood-circle {
+            width: 48px;
+            height: 48px;
         }
         
         .entry-mood {
-            font-size: 2.25rem;
+            font-size: 1.5rem;
+        }
+        
+        .entry-date {
+            font-size: 1rem;
         }
         
         .entry-actions {
             opacity: 1;
+        }
+    }
+    
+    /* Modal Styles */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(8px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 1.5rem;
+        animation: overlayFadeIn 0.25s ease forwards;
+    }
+    
+    @@keyframes overlayFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .modal-content {
+        background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+        border-radius: 24px;
+        max-width: 600px;
+        width: 100%;
+        max-height: 85vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 25px 80px rgba(15, 23, 42, 0.25), 0 10px 30px rgba(15, 23, 42, 0.15);
+        animation: modalSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        position: relative;
+    }
+    
+    @@keyframes modalSlideIn {
+        from {
+            opacity: 0;
+            transform: translateY(30px) scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+    
+    .modal-close {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        border: none;
+        background: rgba(241, 245, 249, 0.9);
+        color: #64748B;
+        font-size: 1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        z-index: 10;
+    }
+    
+    .modal-close:hover {
+        background: #FEE2E2;
+        color: #DC2626;
+        transform: rotate(90deg);
+    }
+    
+    .modal-header {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        padding: 2rem 2rem 1.5rem;
+        background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+        border-bottom: 1px solid #E2E8F0;
+    }
+    
+    .modal-mood {
+        font-size: 4rem;
+        filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+        animation: moodBounce 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        animation-delay: 0.2s;
+        opacity: 0;
+    }
+    
+    @@keyframes moodBounce {
+        from {
+            opacity: 0;
+            transform: scale(0.5);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+    
+    .modal-header-info {
+        flex: 1;
+    }
+    
+    .modal-date {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #0F172A;
+        margin: 0 0 0.5rem;
+        letter-spacing: -0.02em;
+    }
+    
+    .mood-badge {
+        display: inline-block;
+        padding: 0.375rem 0.875rem;
+        border-radius: 20px;
+        font-size: 0.8125rem;
+        font-weight: 600;
+    }
+    
+    .mood-badge.positive {
+        background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+        color: #059669;
+    }
+    
+    .mood-badge.neutral {
+        background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+        color: #B45309;
+    }
+    
+    .mood-badge.negative {
+        background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
+        color: #DC2626;
+    }
+    
+    .modal-body {
+        padding: 1.5rem 2rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+    
+    .modal-content-text {
+        font-size: 1rem;
+        line-height: 1.8;
+        color: #334155;
+        white-space: pre-wrap;
+    }
+    
+    .modal-content-text p {
+        margin-bottom: 1rem;
+    }
+    
+    .modal-tags {
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #F1F5F9;
+    }
+    
+    .tags-label {
+        font-size: 0.8125rem;
+        font-weight: 600;
+        color: #64748B;
+        display: block;
+        margin-bottom: 0.75rem;
+    }
+    
+    .tags-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .modal-tag {
+        background: linear-gradient(135deg, #E8FDF0 0%, #D1FAE5 100%);
+        color: #059669;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border: 1px solid rgba(15, 216, 80, 0.2);
+    }
+    
+    .modal-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 1.25rem 2rem;
+        background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+        border-top: 1px solid #E2E8F0;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+    
+    .modal-meta {
+        display: flex;
+        gap: 1.25rem;
+    }
+    
+    .meta-item {
+        font-size: 0.8125rem;
+        color: #64748B;
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+    }
+    
+    .modal-actions {
+        display: flex;
+        gap: 0.75rem;
+    }
+    
+    .btn-secondary {
+        background: #F1F5F9;
+        color: #475569;
+        border: 1px solid #E2E8F0;
+    }
+    
+    .btn-secondary:hover {
+        background: #E2E8F0;
+        border-color: #CBD5E1;
+    }
+    
+    @@media (max-width: 640px) {
+        .modal-content {
+            max-height: 90vh;
+            border-radius: 20px 20px 0 0;
+            margin-top: auto;
+        }
+        
+        .modal-overlay {
+            align-items: flex-end;
+            padding: 0;
+        }
+        
+        .modal-header {
+            padding: 1.5rem;
+        }
+        
+        .modal-mood {
+            font-size: 3rem;
+        }
+        
+        .modal-body {
+            padding: 1.25rem 1.5rem;
+        }
+        
+        .modal-footer {
+            flex-direction: column;
+            padding: 1.25rem 1.5rem;
+        }
+        
+        .modal-meta {
+            width: 100%;
+            justify-content: center;
+        }
+        
+        .modal-actions {
+            width: 100%;
+        }
+        
+        .modal-actions .btn {
+            flex: 1;
         }
     }
 </style>
@@ -379,6 +1147,29 @@
     private int tagFilter = 0;
     private int currentPage = 1;
     private int pageSize = 10;
+    
+    // Date range filter
+    private bool showDateFilter = false;
+    private DateOnly? startDate = null;
+    private DateOnly? endDate = null;
+    private string datePreset = "all";
+    
+    // Preset constants
+    private const string PresetAll = "all";
+    private const string PresetToday = "today";
+    private const string PresetWeek = "week";
+    private const string PresetMonth = "month";
+    private const string Preset3Months = "3months";
+    private const string PresetYear = "year";
+    private const string PresetCustom = "custom";
+    
+    private bool hasActiveDateFilter => startDate.HasValue || endDate.HasValue;
+    
+    private string GetPresetClass(string preset) => datePreset == preset ? "active" : "";
+    
+    // Modal state
+    private bool showEntryModal = false;
+    private JournalEntry? selectedEntry = null;
     
     private List<Mood> _allMoods = new();
     private List<Tag> _availableTags = new();
@@ -399,10 +1190,92 @@
         _entries = await JournalService.GetEntriesAsync(
             string.IsNullOrWhiteSpace(searchQuery) ? null : searchQuery,
             moodFilter > 0 ? moodFilter : null,
-            tagFilter > 0 ? tagFilter : null
+            tagFilter > 0 ? tagFilter : null,
+            startDate,
+            endDate
         );
         currentPage = 1;
         _isLoading = false;
+    }
+    
+    private void ToggleDateFilter()
+    {
+        showDateFilter = !showDateFilter;
+    }
+    
+    private async Task ApplyDatePreset(string preset)
+    {
+        datePreset = preset;
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        
+        switch (preset)
+        {
+            case "all":
+                startDate = null;
+                endDate = null;
+                break;
+            case "today":
+                startDate = today;
+                endDate = today;
+                break;
+            case "week":
+                startDate = today.AddDays(-(int)today.DayOfWeek);
+                endDate = today;
+                break;
+            case "month":
+                startDate = new DateOnly(today.Year, today.Month, 1);
+                endDate = today;
+                break;
+            case "3months":
+                startDate = today.AddMonths(-3);
+                endDate = today;
+                break;
+            case "year":
+                startDate = new DateOnly(today.Year, 1, 1);
+                endDate = today;
+                break;
+            case "custom":
+                // Keep current dates, user will select manually
+                break;
+        }
+        
+        await LoadEntriesAsync();
+    }
+    
+    private async Task OnStartDateChanged(ChangeEventArgs e)
+    {
+        datePreset = "custom";
+        if (DateTime.TryParse(e.Value?.ToString(), out var date))
+        {
+            startDate = DateOnly.FromDateTime(date);
+        }
+        else
+        {
+            startDate = null;
+        }
+        await LoadEntriesAsync();
+    }
+    
+    private async Task OnEndDateChanged(ChangeEventArgs e)
+    {
+        datePreset = "custom";
+        if (DateTime.TryParse(e.Value?.ToString(), out var date))
+        {
+            endDate = DateOnly.FromDateTime(date);
+        }
+        else
+        {
+            endDate = null;
+        }
+        await LoadEntriesAsync();
+    }
+    
+    private async Task ClearDateFilter()
+    {
+        datePreset = "all";
+        startDate = null;
+        endDate = null;
+        await LoadEntriesAsync();
     }
     
     private async Task OnSearchChanged(ChangeEventArgs e)
@@ -432,6 +1305,48 @@
         if (currentPage < totalPages) currentPage++;
     }
     
+    private void GoToPage(int page)
+    {
+        if (page >= 1 && page <= totalPages)
+            currentPage = page;
+    }
+    
+    private string GetPageBtnClass(int page)
+    {
+        return page == currentPage ? "page-btn active" : "page-btn";
+    }
+    
+    private List<int> GetPageNumbers()
+    {
+        var pages = new List<int>();
+        
+        if (totalPages <= 7)
+        {
+            for (int i = 1; i <= totalPages; i++)
+                pages.Add(i);
+        }
+        else
+        {
+            pages.Add(1);
+            
+            if (currentPage > 3)
+                pages.Add(-1); // ellipsis
+            
+            int start = Math.Max(2, currentPage - 1);
+            int end = Math.Min(totalPages - 1, currentPage + 1);
+            
+            for (int i = start; i <= end; i++)
+                pages.Add(i);
+            
+            if (currentPage < totalPages - 2)
+                pages.Add(-1); // ellipsis
+            
+            pages.Add(totalPages);
+        }
+        
+        return pages;
+    }
+    
     private string GetPreview(string content)
     {
         if (string.IsNullOrEmpty(content)) return "";
@@ -447,5 +1362,37 @@
     {
         await JournalService.DeleteEntryAsync(entryId);
         await LoadEntriesAsync();
+    }
+    
+    // Modal methods
+    private void OpenEntryModal(JournalEntry entry)
+    {
+        selectedEntry = entry;
+        showEntryModal = true;
+    }
+    
+    private void CloseEntryModal()
+    {
+        showEntryModal = false;
+        selectedEntry = null;
+    }
+    
+    private string GetMoodCategoryClass(MoodCategory category)
+    {
+        return category switch
+        {
+            MoodCategory.Positive => "positive",
+            MoodCategory.Negative => "negative",
+            _ => "neutral"
+        };
+    }
+    
+    private string FormatContent(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return "";
+        // Convert line breaks to HTML and escape special characters
+        return System.Net.WebUtility.HtmlEncode(content)
+            .Replace("\n\n", "</p><p>")
+            .Replace("\n", "<br/>");
     }
 }

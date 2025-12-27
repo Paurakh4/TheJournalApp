@@ -35,58 +35,7 @@
     </div>
 </div>
 
-<style>
-    .tag-input-container {
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-    }
-    
-    .selected-tags {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-    
-    .tag-input-wrapper {
-        position: relative;
-    }
-    
-    .tag-input {
-        width: 100%;
-    }
-    
-    .tag-suggestions {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: #FFFFFF;
-        border: 1px solid #E5E7EB;
-        border-radius: 8px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        margin-top: 4px;
-        max-height: 200px;
-        overflow-y: auto;
-        z-index: 10;
-    }
-    
-    .tag-suggestion {
-        display: block;
-        width: 100%;
-        padding: 0.5rem 1rem;
-        text-align: left;
-        background: none;
-        border: none;
-        cursor: pointer;
-        font-size: 0.9375rem;
-        color: #374151;
-    }
-    
-    .tag-suggestion:hover {
-        background-color: #F3F4F6;
-    }
-</style>
+
 
 @code {
     [Parameter]

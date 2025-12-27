@@ -33,6 +33,9 @@ public class JournalService
             _context.UserSettings.Add(new UserSettings { UserId = user.UserId });
             await _context.SaveChangesAsync();
         }
+        
+        // Recalculate streak on startup to sync with actual entries
+        await RecalculateStreakAsync();
     }
 
     public async Task<User?> GetCurrentUserAsync()
@@ -82,7 +85,7 @@ public class JournalService
             .FirstOrDefaultAsync(e => e.UserId == _currentUserId && e.EntryDate == date);
     }
 
-    public async Task<List<JournalEntry>> GetEntriesAsync(string? searchQuery = null, int? moodId = null, int? tagId = null)
+    public async Task<List<JournalEntry>> GetEntriesAsync(string? searchQuery = null, int? moodId = null, int? tagId = null, DateOnly? startDate = null, DateOnly? endDate = null)
     {
         var query = _context.JournalEntries
             .Include(e => e.PrimaryMood)
@@ -98,6 +101,12 @@ public class JournalService
         if (tagId.HasValue)
             query = query.Where(e => e.EntryTags.Any(et => et.TagId == tagId.Value));
 
+        if (startDate.HasValue)
+            query = query.Where(e => e.EntryDate >= startDate.Value);
+
+        if (endDate.HasValue)
+            query = query.Where(e => e.EntryDate <= endDate.Value);
+
         return await query.OrderByDescending(e => e.EntryDate).ToListAsync();
     }
 
@@ -109,6 +118,17 @@ public class JournalService
         return await _context.JournalEntries
             .Include(e => e.PrimaryMood)
             .Where(e => e.UserId == _currentUserId && e.EntryDate >= startDate && e.EntryDate <= endDate)
+            .ToListAsync();
+    }
+
+    public async Task<List<JournalEntry>> GetRecentEntriesAsync(int count = 5)
+    {
+        return await _context.JournalEntries
+            .Include(e => e.PrimaryMood)
+            .Include(e => e.EntryTags).ThenInclude(et => et.Tag)
+            .Where(e => e.UserId == _currentUserId)
+            .OrderByDescending(e => e.EntryDate)
+            .Take(count)
             .ToListAsync();
     }
 
@@ -130,6 +150,49 @@ public class JournalService
         return await _context.Streaks.FirstOrDefaultAsync(s => s.UserId == _currentUserId);
     }
 
+    public async Task RecalculateStreakAsync()
+    {
+        var streak = await _context.Streaks.FirstOrDefaultAsync(s => s.UserId == _currentUserId);
+        if (streak == null) return;
+
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var entries = await _context.JournalEntries
+            .Where(e => e.UserId == _currentUserId)
+            .Select(e => e.EntryDate)
+            .OrderByDescending(d => d)
+            .ToListAsync();
+
+        if (!entries.Any())
+        {
+            streak.CurrentStreak = 0;
+            streak.LastEntryDate = null;
+        }
+        else
+        {
+            int currentStreak = 0;
+            var checkDate = today;
+
+            foreach (var date in entries.Distinct().OrderByDescending(d => d))
+            {
+                if (date == checkDate || date == checkDate.AddDays(-1))
+                {
+                    currentStreak++;
+                    checkDate = date;
+                }
+                else if (date < checkDate.AddDays(-1))
+                    break;
+            }
+
+            streak.CurrentStreak = currentStreak;
+            streak.LastEntryDate = entries.First();
+
+            if (currentStreak > streak.LongestStreak)
+                streak.LongestStreak = currentStreak;
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
     public async Task<string> GetDominantMoodEmojiAsync()
     {
         var moodCounts = await _context.JournalEntries
@@ -149,6 +212,18 @@ public class JournalService
         List<int> secondaryMoodIds, List<int> tagIds, DateOnly entryDate)
     {
         JournalEntry entry;
+
+        // Check if an entry already exists for this date if we're trying to create a new one
+        if (!entryId.HasValue)
+        {
+            var existingEntry = await _context.JournalEntries
+                .FirstOrDefaultAsync(e => e.UserId == _currentUserId && e.EntryDate == entryDate);
+            
+            if (existingEntry != null)
+            {
+                entryId = existingEntry.EntryId;
+            }
+        }
 
         if (entryId.HasValue)
         {
@@ -219,45 +294,7 @@ public class JournalService
 
     private async Task UpdateStreakAsync()
     {
-        var streak = await _context.Streaks.FirstOrDefaultAsync(s => s.UserId == _currentUserId);
-        if (streak == null) return;
-
-        var today = DateOnly.FromDateTime(DateTime.Today);
-        var entries = await _context.JournalEntries
-            .Where(e => e.UserId == _currentUserId)
-            .Select(e => e.EntryDate)
-            .OrderByDescending(d => d)
-            .ToListAsync();
-
-        if (!entries.Any())
-        {
-            streak.CurrentStreak = 0;
-            streak.LastEntryDate = null;
-        }
-        else
-        {
-            int currentStreak = 0;
-            var checkDate = today;
-
-            foreach (var date in entries.Distinct().OrderByDescending(d => d))
-            {
-                if (date == checkDate || date == checkDate.AddDays(-1))
-                {
-                    currentStreak++;
-                    checkDate = date;
-                }
-                else if (date < checkDate.AddDays(-1))
-                    break;
-            }
-
-            streak.CurrentStreak = currentStreak;
-            streak.LastEntryDate = entries.First();
-
-            if (currentStreak > streak.LongestStreak)
-                streak.LongestStreak = currentStreak;
-        }
-
-        await _context.SaveChangesAsync();
+        await RecalculateStreakAsync();
     }
 
     public async Task<AnalyticsData> GetAnalyticsAsync()

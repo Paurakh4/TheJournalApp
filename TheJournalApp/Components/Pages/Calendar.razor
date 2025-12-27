@@ -5,6 +5,40 @@
 @inject NavigationManager NavigationManager
 
 <div class="calendar-page">
+    @if (_isLoading)
+    {
+        <div class="page-header">
+            <h1 class="page-title">Calendar</h1>
+            <p class="page-subtitle">Visual history of your moods</p>
+        </div>
+        <div class="loading-skeleton">
+            <div class="skeleton-nav">
+                <div class="skeleton-nav-btn"></div>
+                <div class="skeleton-month"></div>
+                <div class="skeleton-nav-btn"></div>
+            </div>
+            <div class="skeleton-legend">
+                <div class="skeleton-legend-item"></div>
+                <div class="skeleton-legend-item"></div>
+                <div class="skeleton-legend-item"></div>
+                <div class="skeleton-legend-item"></div>
+            </div>
+            <div class="skeleton-calendar-grid">
+                @for (int i = 0; i < 35; i++)
+                {
+                    <div class="skeleton-calendar-cell"></div>
+                }
+            </div>
+            <div class="skeleton-stats">
+                <div class="skeleton-stat"></div>
+                <div class="skeleton-stat"></div>
+                <div class="skeleton-stat"></div>
+                <div class="skeleton-stat"></div>
+            </div>
+        </div>
+    }
+    else
+    {
     <div class="page-header">
         <h1 class="page-title">Calendar</h1>
         <p class="page-subtitle">Visual history of your moods</p>
@@ -91,15 +125,16 @@
             <div class="stat-mini-label">Total Entries</div>
         </div>
     </div>
+    }
 </div>
 
 <style>
     .calendar-page {
         max-width: 940px;
-        animation: fadeInUp 0.4s ease-out;
+        animation: calendarFadeIn 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
     }
     
-    @@keyframes fadeInUp {
+    @@keyframes calendarFadeIn {
         from {
             opacity: 0;
             transform: translateY(16px);
@@ -108,6 +143,96 @@
             opacity: 1;
             transform: translateY(0);
         }
+    }
+    
+    .loading-skeleton {
+        animation: skeletonFadeIn 0.3s ease;
+    }
+    
+    @@keyframes skeletonFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .skeleton-nav {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.25rem;
+        padding: 0.5rem;
+    }
+    
+    .skeleton-nav-btn {
+        width: 100px;
+        height: 40px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 10px;
+    }
+    
+    .skeleton-month {
+        width: 180px;
+        height: 32px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 8px;
+    }
+    
+    .skeleton-legend {
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        margin-bottom: 1.75rem;
+    }
+    
+    .skeleton-legend-item {
+        width: 80px;
+        height: 24px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 6px;
+    }
+    
+    .skeleton-calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 8px;
+        background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+        padding: 1.75rem;
+        border-radius: 16px;
+        border: 1px solid #E2E8F0;
+    }
+    
+    .skeleton-calendar-cell {
+        aspect-ratio: 1;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 12px;
+        min-height: 75px;
+    }
+    
+    .skeleton-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+    
+    .skeleton-stat {
+        height: 100px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 16px;
+    }
+    
+    @@keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
     }
     
     .calendar-nav {
@@ -123,11 +248,17 @@
         color: #64748B;
         padding: 0.625rem 1rem;
         border-radius: 10px;
+        transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
     }
     
     .calendar-nav .btn-ghost:hover {
         background: #F1F5F9;
-        color: #6366F1;
+        color: #0fd850;
+        transform: scale(1.02);
+    }
+    
+    .calendar-nav .btn-ghost:active {
+        transform: scale(0.98);
     }
     
     .current-month {
@@ -139,6 +270,7 @@
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+        transition: transform 0.3s ease;
     }
     
     .mood-legend {
@@ -147,6 +279,14 @@
         margin-bottom: 1.75rem;
         justify-content: center;
         flex-wrap: wrap;
+        animation: legendFadeIn 0.4s ease forwards;
+        animation-delay: 0.15s;
+        opacity: 0;
+    }
+    
+    @@keyframes legendFadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
     }
     
     .legend-item {
@@ -156,6 +296,11 @@
         font-size: 0.875rem;
         font-weight: 600;
         color: #64748B;
+        transition: transform 0.2s ease;
+    }
+    
+    .legend-item:hover {
+        transform: scale(1.05);
     }
     
     .legend-dot {
@@ -163,6 +308,11 @@
         height: 18px;
         border-radius: 6px;
         box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+        transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    
+    .legend-item:hover .legend-dot {
+        transform: scale(1.15);
     }
     
     .legend-dot.mood-bg-happy {
@@ -188,6 +338,14 @@
     .calendar-container {
         padding: 1.75rem;
         background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+        animation: containerFadeIn 0.5s ease forwards;
+        animation-delay: 0.2s;
+        opacity: 0;
+    }
+    
+    @@keyframes containerFadeIn {
+        from { opacity: 0; transform: scale(0.98); }
+        to { opacity: 1; transform: scale(1); }
     }
     
     .calendar-grid {
@@ -215,7 +373,10 @@
         background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
         border-radius: 12px;
         cursor: pointer;
-        transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+        transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                    box-shadow 0.25s ease,
+                    background 0.2s ease,
+                    border-color 0.2s ease;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -226,9 +387,13 @@
     }
     
     .calendar-cell:hover:not(.empty) {
-        transform: scale(1.08);
-        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
+        transform: scale(1.1);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
         z-index: 1;
+    }
+    
+    .calendar-cell:active:not(.empty) {
+        transform: scale(1.02);
     }
     
     .calendar-cell.empty {
@@ -237,9 +402,9 @@
     }
     
     .calendar-cell.today {
-        border-color: #6366F1;
-        background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
-        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        border-color: #0fd850;
+        background: linear-gradient(135deg, #E8FDF0 0%, #D1FAE5 100%);
+        box-shadow: 0 0 0 4px rgba(15, 216, 80, 0.12);
     }
     
     .calendar-cell.has-happy {
@@ -248,7 +413,7 @@
     }
     
     .calendar-cell.has-happy:hover {
-        box-shadow: 0 8px 20px rgba(16, 185, 129, 0.15);
+        box-shadow: 0 10px 24px rgba(16, 185, 129, 0.18);
     }
     
     .calendar-cell.has-neutral {
@@ -257,7 +422,7 @@
     }
     
     .calendar-cell.has-neutral:hover {
-        box-shadow: 0 8px 20px rgba(245, 158, 11, 0.15);
+        box-shadow: 0 10px 24px rgba(245, 158, 11, 0.18);
     }
     
     .calendar-cell.has-sad {
@@ -266,28 +431,29 @@
     }
     
     .calendar-cell.has-sad:hover {
-        box-shadow: 0 8px 20px rgba(244, 63, 94, 0.15);
+        box-shadow: 0 10px 24px rgba(244, 63, 94, 0.18);
     }
     
     .calendar-day {
         font-size: 0.9375rem;
         font-weight: 700;
         color: #475569;
+        transition: color 0.2s ease;
     }
     
     .calendar-cell.today .calendar-day {
-        color: #6366F1;
+        color: #0fd850;
     }
     
     .calendar-mood {
         font-size: 1.375rem;
         margin-top: 0.375rem;
         filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
-        transition: transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+        transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     
     .calendar-cell:hover .calendar-mood {
-        transform: scale(1.2);
+        transform: scale(1.25) rotate(-5deg);
     }
     
     .calendar-stats {
@@ -303,6 +469,24 @@
         background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
         position: relative;
         overflow: hidden;
+        animation: statSlideIn 0.4s ease forwards;
+        opacity: 0;
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
+    }
+    
+    .calendar-stats .stat-mini:nth-child(1) { animation-delay: 0.35s; }
+    .calendar-stats .stat-mini:nth-child(2) { animation-delay: 0.4s; }
+    .calendar-stats .stat-mini:nth-child(3) { animation-delay: 0.45s; }
+    .calendar-stats .stat-mini:nth-child(4) { animation-delay: 0.5s; }
+    
+    @@keyframes statSlideIn {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .calendar-stats .stat-mini:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
     }
     
     .calendar-stats .stat-mini::before {
@@ -312,19 +496,29 @@
         right: 0;
         width: 70px;
         height: 70px;
-        background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
-        opacity: 0.04;
+        background: linear-gradient(135deg, #0fd850 0%, #f9f047 100%);
+        opacity: 0.06;
         border-radius: 50%;
         transform: translate(30%, -30%);
+        transition: opacity 0.3s ease;
+    }
+    
+    .calendar-stats .stat-mini:hover::before {
+        opacity: 0.1;
     }
     
     .stat-mini-value {
         font-size: 2rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+        background: linear-gradient(135deg, #0fd850 0%, #0bc045 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+        transition: transform 0.3s ease;
+    }
+    
+    .calendar-stats .stat-mini:hover .stat-mini-value {
+        transform: scale(1.08);
     }
     
     .stat-mini-label {
@@ -436,6 +630,6 @@
         if (entry != null)
             NavigationManager.NavigateTo($"/editor/{entry.EntryId}");
         else if (date.Date <= DateTime.Today)
-            NavigationManager.NavigateTo("/editor");
+            NavigationManager.NavigateTo($"/editor?date={date:yyyy-MM-dd}");
     }
 }

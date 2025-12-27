@@ -6,6 +6,42 @@
 @inject NavigationManager NavigationManager
 
 <div class="editor-page">
+    @if (_isLoading)
+    {
+        <div class="loading-skeleton">
+            <div class="skeleton-header">
+                <div class="skeleton-badge"></div>
+                <div class="skeleton-actions">
+                    <div class="skeleton-btn"></div>
+                    <div class="skeleton-btn primary"></div>
+                </div>
+            </div>
+            <div class="skeleton-section">
+                <div class="skeleton-line short"></div>
+                <div class="skeleton-moods">
+                    <div class="skeleton-mood"></div>
+                    <div class="skeleton-mood"></div>
+                    <div class="skeleton-mood"></div>
+                    <div class="skeleton-mood"></div>
+                    <div class="skeleton-mood"></div>
+                </div>
+            </div>
+            <div class="skeleton-section">
+                <div class="skeleton-line short"></div>
+                <div class="skeleton-chips">
+                    <div class="skeleton-chip"></div>
+                    <div class="skeleton-chip"></div>
+                    <div class="skeleton-chip"></div>
+                    <div class="skeleton-chip"></div>
+                </div>
+            </div>
+            <div class="skeleton-section large">
+                <div class="skeleton-textarea"></div>
+            </div>
+        </div>
+    }
+    else
+    {
     <!-- Top Bar -->
     <div class="editor-header">
         <div class="header-left">
@@ -112,15 +148,16 @@
             </div>
         </div>
     </div>
+    }
 </div>
 
 <style>
     .editor-page {
         max-width: 940px;
-        animation: fadeInUp 0.4s ease-out;
+        animation: editorPageIn 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
     }
     
-    @@keyframes fadeInUp {
+    @@keyframes editorPageIn {
         from {
             opacity: 0;
             transform: translateY(16px);
@@ -131,6 +168,120 @@
         }
     }
     
+    .loading-skeleton {
+        animation: skeletonFadeIn 0.3s ease;
+    }
+    
+    @@keyframes skeletonFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .skeleton-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        padding-bottom: 1.25rem;
+        border-bottom: 1px solid #E2E8F0;
+    }
+    
+    .skeleton-badge {
+        width: 200px;
+        height: 44px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 10px;
+    }
+    
+    .skeleton-actions {
+        display: flex;
+        gap: 0.875rem;
+    }
+    
+    .skeleton-btn {
+        width: 100px;
+        height: 44px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 10px;
+    }
+    
+    .skeleton-btn.primary {
+        width: 120px;
+    }
+    
+    .skeleton-section {
+        background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+        border-radius: 16px;
+        padding: 1.75rem;
+        margin-bottom: 1.75rem;
+        border: 1px solid #E2E8F0;
+    }
+    
+    .skeleton-section.large {
+        min-height: 380px;
+    }
+    
+    .skeleton-line {
+        height: 20px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 6px;
+        margin-bottom: 1.25rem;
+    }
+    
+    .skeleton-line.short {
+        width: 30%;
+    }
+    
+    .skeleton-moods {
+        display: flex;
+        gap: 1.25rem;
+        flex-wrap: wrap;
+    }
+    
+    .skeleton-mood {
+        width: 90px;
+        height: 100px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 16px;
+    }
+    
+    .skeleton-chips {
+        display: flex;
+        gap: 0.625rem;
+        flex-wrap: wrap;
+    }
+    
+    .skeleton-chip {
+        width: 100px;
+        height: 40px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 50px;
+    }
+    
+    .skeleton-textarea {
+        width: 100%;
+        height: 300px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 12px;
+    }
+    
+    @@keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+    
     .editor-header {
         display: flex;
         align-items: center;
@@ -138,6 +289,14 @@
         margin-bottom: 2rem;
         padding-bottom: 1.25rem;
         border-bottom: 1px solid #E2E8F0;
+        animation: headerFadeIn 0.4s ease forwards;
+        animation-delay: 0.1s;
+        opacity: 0;
+    }
+    
+    @@keyframes headerFadeIn {
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
     }
     
     .date-badge {
@@ -148,6 +307,12 @@
         padding: 0.625rem 1rem;
         border-radius: 10px;
         border: 1px solid #E2E8F0;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    .date-badge:hover {
+        border-color: #CBD5E1;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
     }
     
     .header-actions {
@@ -159,6 +324,23 @@
         margin-bottom: 1.75rem;
         padding: 1.75rem;
         background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+        animation: sectionFadeIn 0.4s ease forwards;
+        opacity: 0;
+        transition: box-shadow 0.25s ease, border-color 0.2s ease;
+    }
+    
+    .editor-section:nth-of-type(1) { animation-delay: 0.15s; }
+    .editor-section:nth-of-type(2) { animation-delay: 0.2s; }
+    .editor-section:nth-of-type(3) { animation-delay: 0.25s; }
+    .editor-section:nth-of-type(4) { animation-delay: 0.3s; }
+    
+    @@keyframes sectionFadeIn {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .editor-section:hover {
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
     }
     
     .section-title {
@@ -200,7 +382,10 @@
         border: 2px solid #E2E8F0;
         background: #FFFFFF;
         cursor: pointer;
-        transition: all 250ms cubic-bezier(0.4, 0, 0.2, 1);
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                    border-color 0.2s ease,
+                    box-shadow 0.25s ease,
+                    background-color 0.2s ease;
         position: relative;
         overflow: hidden;
     }
@@ -209,37 +394,37 @@
         content: '';
         position: absolute;
         inset: 0;
-        background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+        background: linear-gradient(135deg, #0fd850 0%, #f9f047 100%);
         opacity: 0;
-        transition: opacity 200ms ease;
+        transition: opacity 0.25s ease;
     }
     
     .mood-option:hover {
         border-color: #94A3B8;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
     }
     
     .mood-option.selected {
-        border-color: #6366F1;
-        background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15), 0 0 0 4px rgba(99, 102, 241, 0.08);
+        border-color: #0fd850;
+        background: linear-gradient(135deg, #E8FDF0 0%, #D1FAE5 100%);
+        box-shadow: 0 4px 16px rgba(15, 216, 80, 0.2), 0 0 0 4px rgba(15, 216, 80, 0.1);
     }
     
     .mood-option.selected::before {
-        opacity: 0.03;
+        opacity: 0.04;
     }
     
     .mood-emoji {
         font-size: 2.5rem;
         position: relative;
         z-index: 1;
-        transition: transform 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+        transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     
     .mood-option:hover .mood-emoji,
     .mood-option.selected .mood-emoji {
-        transform: scale(1.15);
+        transform: scale(1.2) rotate(-5deg);
     }
     
     .mood-label {
@@ -248,10 +433,11 @@
         color: #64748B;
         position: relative;
         z-index: 1;
+        transition: color 0.2s ease;
     }
     
     .mood-option.selected .mood-label {
-        color: #6366F1;
+        color: #0fd850;
     }
     
     .secondary-moods {
@@ -269,20 +455,24 @@
         border-radius: 50px;
         color: #64748B;
         cursor: pointer;
-        transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+        transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                    border-color 0.2s ease,
+                    background-color 0.2s ease,
+                    box-shadow 0.2s ease;
     }
     
     .chip-btn:hover {
         border-color: #94A3B8;
         background: #F8FAFC;
-        transform: translateY(-1px);
+        transform: translateY(-2px) scale(1.02);
     }
     
     .chip-btn.selected {
-        background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
-        border-color: #6366F1;
-        color: #6366F1;
-        box-shadow: 0 2px 8px rgba(99, 102, 241, 0.12);
+        background: linear-gradient(135deg, #E8FDF0 0%, #D1FAE5 100%);
+        border-color: #0fd850;
+        color: #0bc045;
+        box-shadow: 0 2px 10px rgba(15, 216, 80, 0.15);
+        transform: scale(1.02);
     }
     
     .content-section {
@@ -308,18 +498,26 @@
         color: #64748B;
         font-size: 0.9375rem;
         font-weight: 600;
-        transition: all 150ms ease;
+        transition: background-color 0.15s ease, 
+                    color 0.15s ease, 
+                    box-shadow 0.15s ease,
+                    transform 0.2s ease;
     }
     
     .toolbar-btn:hover {
         background: #FFFFFF;
         color: #0F172A;
         box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+        transform: translateY(-1px);
+    }
+    
+    .toolbar-btn:active {
+        transform: translateY(0);
     }
     
     .toolbar-btn:focus {
         outline: none;
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+        box-shadow: 0 0 0 3px rgba(15, 216, 80, 0.15);
     }
     
     .editor-content {
@@ -333,7 +531,7 @@
         resize: vertical;
         font-family: inherit;
         color: #0F172A;
-        transition: all 200ms ease;
+        transition: border-color 0.2s ease, box-shadow 0.25s ease;
     }
     
     .editor-content:hover {
@@ -342,81 +540,15 @@
     
     .editor-content:focus {
         outline: none;
-        border-color: #6366F1;
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+        border-color: #0fd850;
+        box-shadow: 0 0 0 3px rgba(15, 216, 80, 0.12);
     }
     
     .editor-content::placeholder {
         color: #94A3B8;
     }
     
-    .tag-input-container {
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-    }
-    
-    .selected-tags {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-    }
-    
-    .selected-tags .chip {
-        background: linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%);
-        border-color: rgba(99, 102, 241, 0.2);
-        color: #6366F1;
-        font-weight: 600;
-    }
-    
-    .tag-input-wrapper {
-        position: relative;
-    }
-    
-    .tag-input-wrapper .form-input {
-        border-radius: 12px;
-    }
-    
-    .tag-suggestions {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: #FFFFFF;
-        border: 1.5px solid #E2E8F0;
-        border-radius: 12px;
-        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1), 0 4px 10px rgba(15, 23, 42, 0.05);
-        margin-top: 6px;
-        max-height: 220px;
-        overflow-y: auto;
-        z-index: 10;
-    }
-    
-    .tag-suggestion {
-        display: block;
-        width: 100%;
-        padding: 0.75rem 1rem;
-        text-align: left;
-        background: none;
-        border: none;
-        cursor: pointer;
-        font-size: 0.9375rem;
-        color: #475569;
-        transition: all 150ms ease;
-    }
-    
-    .tag-suggestion:first-child {
-        border-radius: 10px 10px 0 0;
-    }
-    
-    .tag-suggestion:last-child {
-        border-radius: 0 0 10px 10px;
-    }
-    
-    .tag-suggestion:hover {
-        background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
-        color: #6366F1;
-    }
+
     
     @@media (max-width: 640px) {
         .editor-header {
@@ -450,6 +582,9 @@
     [SupplyParameterFromQuery]
     public int? Mood { get; set; }
     
+    [SupplyParameterFromQuery(Name = "date")]
+    public string? DateParam { get; set; }
+    
     private DateTime entryDate = DateTime.Today;
     private int selectedPrimaryMoodId = 0;
     private List<int> selectedSecondaryMoodIds = new();
@@ -467,6 +602,21 @@
         await JournalService.EnsureUserExistsAsync();
         _allMoods = await JournalService.GetAllMoodsAsync();
         _availableTags = await JournalService.GetAvailableTagsAsync();
+        
+        // Parse date parameter if provided
+        if (!string.IsNullOrEmpty(DateParam) && DateOnly.TryParse(DateParam, out var parsedDate))
+        {
+            entryDate = parsedDate.ToDateTime(TimeOnly.MinValue);
+            
+            // Check if there's already an entry for this date
+            var existingEntry = await JournalService.GetEntryByDateAsync(parsedDate);
+            if (existingEntry != null)
+            {
+                _existingEntryId = existingEntry.EntryId;
+                selectedPrimaryMoodId = existingEntry.PrimaryMoodId;
+                entryContent = existingEntry.Content;
+            }
+        }
         
         if (EntryId.HasValue)
         {

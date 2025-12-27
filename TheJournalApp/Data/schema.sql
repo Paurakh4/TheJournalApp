@@ -138,3 +138,54 @@ ON CONFLICT ("TagId") DO NOTHING;
 -- Reset sequences to avoid conflicts
 SELECT setval('"Moods_MoodId_seq"', (SELECT MAX("MoodId") FROM "Moods"));
 SELECT setval('"Tags_TagId_seq"', (SELECT MAX("TagId") FROM "Tags"));
+
+-- Seed demo user
+INSERT INTO "Users" ("UserId", "Username", "PasswordHash", "CreatedAt") VALUES
+    (1, 'User', 'demo', CURRENT_TIMESTAMP)
+ON CONFLICT ("UserId") DO NOTHING;
+
+-- Seed user settings for demo user
+INSERT INTO "UserSettings" ("UserId", "IsDarkMode") VALUES
+    (1, FALSE)
+ON CONFLICT ("UserId") DO NOTHING;
+
+-- Seed streak for demo user (12 consecutive days)
+INSERT INTO "Streaks" ("UserId", "CurrentStreak", "LongestStreak", "LastEntryDate") VALUES
+    (1, 12, 12, CURRENT_DATE)
+ON CONFLICT ("UserId") DO NOTHING;
+
+-- Seed demo journal entries (12 consecutive days)
+INSERT INTO "JournalEntries" ("EntryId", "UserId", "PrimaryMoodId", "Content", "WordCount", "EntryDate", "CreatedAt", "UpdatedAt") VALUES
+    (1, 1, 1, 'Had an amazing day at work today! Finally finished the project I''ve been working on for weeks. The team was super supportive and we celebrated with lunch together. Feeling accomplished and ready for new challenges.', 36, CURRENT_DATE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (2, 1, 3, 'Grateful for the little things today. Woke up to sunshine, had my favorite coffee, and received a sweet message from an old friend. Sometimes it''s the small moments that matter most.', 33, CURRENT_DATE - INTERVAL '1 day', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (3, 1, 2, 'So excited about the upcoming vacation! Started packing and planning the itinerary. Can''t wait to explore new places and create memories with family.', 26, CURRENT_DATE - INTERVAL '2 days', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (4, 1, 7, 'Long day at work. Had back-to-back meetings and didn''t get much done on my actual tasks. Need to find a better balance. Going to bed early tonight to recharge.', 31, CURRENT_DATE - INTERVAL '3 days', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (5, 1, 4, 'Peaceful morning meditation followed by a quiet walk in the park. The autumn leaves are beautiful this time of year. Feeling centered and at peace with everything.', 28, CURRENT_DATE - INTERVAL '4 days', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (6, 1, 10, 'Feeling a bit anxious about the presentation tomorrow. Practiced several times but still nervous. Need to remember to breathe and trust my preparation.', 26, CURRENT_DATE - INTERVAL '5 days', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (7, 1, 1, 'The presentation went great! All that worrying for nothing. Got positive feedback from the team and even a compliment from my manager. Celebrating with pizza tonight!', 28, CURRENT_DATE - INTERVAL '6 days', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (8, 1, 5, 'Wonderful family dinner at mom''s place. She made her famous pasta and we all sat around sharing stories. These moments are precious. Feeling so loved.', 27, CURRENT_DATE - INTERVAL '7 days', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (9, 1, 6, 'Regular day, nothing too exciting. Worked from home, did some chores, watched a movie in the evening. Sometimes ordinary days are just what you need.', 26, CURRENT_DATE - INTERVAL '8 days', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (10, 1, 12, 'Stressed about deadlines piling up. Too many things on my plate right now. Made a to-do list to organize everything. Hope tomorrow is more productive.', 27, CURRENT_DATE - INTERVAL '9 days', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (11, 1, 2, 'Started learning a new programming language today! It''s challenging but exciting. Love the feeling of expanding my skills. Small progress is still progress.', 26, CURRENT_DATE - INTERVAL '10 days', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+    (12, 1, 4, 'Great gym session this morning. Hit a new personal record on squats! Feeling strong and motivated to keep up the routine. Health is wealth.', 25, CURRENT_DATE - INTERVAL '11 days', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT ("EntryId") DO NOTHING;
+
+-- Seed demo entry tags
+INSERT INTO "EntryTags" ("EntryId", "TagId") VALUES
+    (1, 1), (1, 8),      -- Entry 1: Work, Social
+    (2, 2),              -- Entry 2: Personal
+    (3, 5), (3, 4),      -- Entry 3: Travel, Family
+    (4, 1),              -- Entry 4: Work
+    (5, 3), (5, 2),      -- Entry 5: Health, Personal
+    (6, 1),              -- Entry 6: Work
+    (7, 1), (7, 8),      -- Entry 7: Work, Social
+    (8, 4), (8, 7),      -- Entry 8: Family, Food
+    (9, 2), (9, 9),      -- Entry 9: Personal, Hobby
+    (10, 1),             -- Entry 10: Work
+    (11, 10), (11, 9),   -- Entry 11: Learning, Hobby
+    (12, 6), (12, 3)     -- Entry 12: Exercise, Health
+ON CONFLICT DO NOTHING;
+
+-- Reset sequences after demo data
+SELECT setval('"Users_UserId_seq"', (SELECT COALESCE(MAX("UserId"), 1) FROM "Users"));
+SELECT setval('"JournalEntries_EntryId_seq"', (SELECT COALESCE(MAX("EntryId"), 1) FROM "JournalEntries"));

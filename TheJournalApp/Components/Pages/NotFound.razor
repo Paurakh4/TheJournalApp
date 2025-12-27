@@ -2,11 +2,24 @@
 @layout MainLayout
 
 <div class="not-found-page">
-    <div class="empty-state">
-        <div class="empty-icon">🔍</div>
-        <h1 class="empty-title">Page Not Found</h1>
-        <p class="empty-description">Sorry, the content you are looking for does not exist.</p>
-        <a href="/" class="btn btn-primary">Go to Dashboard</a>
+    <div class="not-found-content">
+        <div class="not-found-visual">
+            <div class="floating-icon">📝</div>
+            <div class="visual-rings">
+                <div class="ring ring-1"></div>
+                <div class="ring ring-2"></div>
+                <div class="ring ring-3"></div>
+            </div>
+        </div>
+        <div class="not-found-text">
+            <span class="error-badge">404</span>
+            <h1 class="not-found-title">Page Not Found</h1>
+            <p class="not-found-description">The page you're looking for doesn't exist or has been moved.</p>
+            <div class="not-found-actions">
+                <a href="/" class="btn btn-primary btn-lg">Back to Dashboard</a>
+                <a href="/entries" class="btn btn-secondary">View Entries</a>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -15,6 +28,119 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        min-height: 60vh;
+        min-height: 70vh;
+        padding: 2rem;
+        animation: pageIn 0.6s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+    }
+    
+    @@keyframes pageIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .not-found-content {
+        text-align: center;
+        max-width: 500px;
+    }
+    
+    .not-found-visual {
+        position: relative;
+        width: 180px;
+        height: 180px;
+        margin: 0 auto 2.5rem;
+    }
+    
+    .floating-icon {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 4.5rem;
+        filter: drop-shadow(0 8px 24px rgba(15, 216, 80, 0.25));
+        animation: iconFloat 3s ease-in-out infinite;
+        z-index: 2;
+    }
+    
+    @@keyframes iconFloat {
+        0%, 100% { transform: translate(-50%, -50%) translateY(0) rotate(0deg); }
+        50% { transform: translate(-50%, -50%) translateY(-12px) rotate(-5deg); }
+    }
+    
+    .visual-rings {
+        position: absolute;
+        inset: 0;
+    }
+    
+    .ring {
+        position: absolute;
+        border-radius: 50%;
+        border: 2px dashed;
+    }
+    
+    .ring-1 {
+        inset: 10%;
+        border-color: rgba(15, 216, 80, 0.15);
+        animation: ringRotate 20s linear infinite;
+    }
+    
+    .ring-2 {
+        inset: 0;
+        border-color: rgba(249, 240, 71, 0.12);
+        animation: ringRotate 25s linear infinite reverse;
+    }
+    
+    .ring-3 {
+        inset: -15%;
+        border-color: rgba(99, 102, 241, 0.08);
+        animation: ringRotate 30s linear infinite;
+    }
+    
+    @@keyframes ringRotate {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    
+    .error-badge {
+        display: inline-block;
+        padding: 0.5rem 1.25rem;
+        background: linear-gradient(135deg, rgba(15, 216, 80, 0.1) 0%, rgba(249, 240, 71, 0.08) 100%);
+        border: 1px solid rgba(15, 216, 80, 0.2);
+        border-radius: 999px;
+        font-size: 0.875rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        color: #0fd850;
+        margin-bottom: 1rem;
+    }
+    
+    .not-found-title {
+        font-size: 2.25rem;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        margin: 0 0 0.75rem;
+        background: linear-gradient(135deg, #0F172A 0%, #334155 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .not-found-description {
+        color: #64748B;
+        font-size: 1.0625rem;
+        line-height: 1.6;
+        margin: 0 0 2rem;
+    }
+    
+    .not-found-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
     }
 </style>

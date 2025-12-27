@@ -5,65 +5,286 @@
 @inject NavigationManager NavigationManager
 
 <div class="dashboard">
-    <div class="page-header">
-        <h1 class="page-title">@GetGreeting(), @_username!</h1>
-        <p class="page-subtitle">@DateTime.Now.ToString("dddd, MMMM d")</p>
-    </div>
-    
-    <div class="streak-widget mb-3">
-        <span class="streak-icon">🔥</span>
-        <div>
-            <div class="streak-count">@_streakCount Day Streak</div>
-            <div class="streak-label">Keep up the great work!</div>
-        </div>
-    </div>
-    
-    @if (!_hasTodayEntry)
+    @if (_isLoading)
     {
-        <div class="card mood-checkin">
-            <h3>How are you feeling today?</h3>
-            <p class="text-muted">Take a moment to check in with yourself</p>
-            
-            <div class="mood-selector-large">
-                @foreach (var mood in _quickMoods)
-                {
-                    <button class="mood-btn" @onclick="@(() => StartEntryWithMood(mood.MoodId))">
-                        <span class="emoji">@mood.Emoji</span>
-                        <span class="label">@mood.Name</span>
-                    </button>
-                }
+        <div class="loading-skeleton">
+            <div class="skeleton-hero">
+                <div class="skeleton-line wide"></div>
+                <div class="skeleton-line medium"></div>
+                <div class="skeleton-buttons">
+                    <div class="skeleton-btn"></div>
+                    <div class="skeleton-btn"></div>
+                </div>
+            </div>
+            <div class="skeleton-grid">
+                <div class="skeleton-card large"></div>
+                <div class="skeleton-stats">
+                    <div class="skeleton-card small"></div>
+                    <div class="skeleton-card small"></div>
+                    <div class="skeleton-card small"></div>
+                </div>
             </div>
         </div>
     }
     else
     {
-        <div class="card today-summary">
-            <div class="card-header">
-                <h3 class="card-title">Today's Entry</h3>
-                <a href="editor" class="btn btn-secondary btn-sm">Edit</a>
+    <section class="hero-panel">
+        <div class="hero-copy">
+            <p class="eyebrow">Dashboard</p>
+            <h1 class="hero-title">@GetGreeting(), @_username!</h1>
+            <p class="hero-subtitle">Stay on top of your mood, streak, and reflections in one place.</p>
+            <div class="hero-actions">
+                <button class="btn btn-primary btn-lg" @onclick="GoToEditor">New Entry</button>
+                <button class="btn btn-secondary" @onclick="GoToAnalytics">View Insights</button>
+                <button class="btn btn-ghost" @onclick="GoToCalendar">Calendar</button>
             </div>
-            <div class="summary-content">
-                <span class="summary-mood">@_todayMoodEmoji</span>
-                <p class="summary-preview">@_todayPreview</p>
+            <div class="hero-pills">
+                <span class="pill">🔥 @_streakCount day streak</span>
+                <span class="pill">💫 Mood @_dominantMood</span>
+                <span class="pill">📓 @_totalEntries entries</span>
             </div>
         </div>
-    }
-    
-    <div class="quick-stats">
-        <div class="card stat-mini">
-            <div class="stat-mini-value">@_totalEntries</div>
-            <div class="stat-mini-label">Total Entries</div>
+        <div class="hero-visual">
+            <div class="hero-date">
+                <span class="hero-date-day">@DateTime.Now.ToString("dddd")</span>
+                <span class="hero-date-full">@DateTime.Now.ToString("MMMM d")</span>
+            </div>
+            <div class="hero-orb">
+                <span class="hero-orb-emoji">@_todayMoodEmoji</span>
+                <div class="hero-orb-meta">
+                    <span>This week</span>
+                    <strong>@_thisWeekEntries entries</strong>
+                </div>
+            </div>
         </div>
-        <div class="card stat-mini">
-            <div class="stat-mini-value">@_thisWeekEntries</div>
-            <div class="stat-mini-label">This Week</div>
+    </section>
+
+    <div class="dashboard-grid">
+        <div class="dashboard-main">
+            <div class="card focus-card">
+                <div class="card-heading">
+                    <div>
+                        <p class="eyebrow">Today</p>
+                        <h3 class="card-title">@(!_hasTodayEntry ? "How are you feeling?" : "Today's entry")</h3>
+                        <p class="card-subtitle">@(!_hasTodayEntry ? "Pick a mood to start your check-in, then write it out." : "Here is your saved check-in. Tweak it or add more detail.")</p>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn btn-secondary btn-sm" @onclick="GoToEntries">All entries</button>
+                    </div>
+                </div>
+
+                @if (!_hasTodayEntry)
+                {
+                    <div class="mood-grid">
+                        @foreach (var mood in _quickMoods)
+                        {
+                            <button class="mood-btn" @onclick="@(() => StartEntryWithMood(mood.MoodId))">
+                                <span class="emoji">@mood.Emoji</span>
+                                <span class="label">@mood.Name</span>
+                            </button>
+                        }
+                    </div>
+                    <div class="inline-hint">Prefer to write first? Start a blank entry and set a mood later.</div>
+                }
+                else
+                {
+                    <div class="today-summary elevated">
+                        <div class="summary-content">
+                            <span class="summary-mood">@_todayMoodEmoji</span>
+                            <div class="summary-body">
+                                <p class="summary-preview">@_todayPreview</p>
+                                <div class="summary-actions">
+                                    <button class="btn btn-primary btn-sm" @onclick="GoToEditor">Continue</button>
+                                    <button class="btn btn-ghost btn-sm" @onclick="GoToAnalytics">View insights</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="quick-stats">
+                <div class="card stat-mini">
+                    <div class="stat-icon">📓</div>
+                    <div>
+                        <div class="stat-mini-label">Total Entries</div>
+                        <div class="stat-mini-value">@_totalEntries</div>
+                    </div>
+                </div>
+                <div class="card stat-mini">
+                    <div class="stat-icon">📅</div>
+                    <div>
+                        <div class="stat-mini-label">This Week</div>
+                        <div class="stat-mini-value">@_thisWeekEntries</div>
+                    </div>
+                </div>
+                <div class="card stat-mini">
+                    <div class="stat-icon">⭐</div>
+                    <div>
+                        <div class="stat-mini-label">Most Common</div>
+                        <div class="stat-mini-value emoji">@_dominantMood</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card quick-links">
+                <div class="card-heading">
+                    <div>
+                        <p class="eyebrow">Navigate</p>
+                        <h3 class="card-title">Jump into a view</h3>
+                    </div>
+                </div>
+                <div class="link-grid">
+                    <button class="link-tile" @onclick="GoToCalendar">
+                        <span class="link-icon">📆</span>
+                        <div>
+                            <strong>Calendar</strong>
+                            <p>Spot your streak and gaps</p>
+                        </div>
+                    </button>
+                    <button class="link-tile" @onclick="GoToAnalytics">
+                        <span class="link-icon">📊</span>
+                        <div>
+                            <strong>Analytics</strong>
+                            <p>See mood trends and patterns</p>
+                        </div>
+                    </button>
+                    <button class="link-tile" @onclick="GoToEntries">
+                        <span class="link-icon">🗂️</span>
+                        <div>
+                            <strong>Entries</strong>
+                            <p>Browse or refine past notes</p>
+                        </div>
+                    </button>
+                    <button class="link-tile" @onclick="GoToEditor">
+                        <span class="link-icon">✏️</span>
+                        <div>
+                            <strong>Quick capture</strong>
+                            <p>Drop a thought right now</p>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            @if (_recentEntries.Any())
+            {
+                <div class="card recent-entries">
+                    <div class="card-heading">
+                        <div>
+                            <p class="eyebrow">Recent</p>
+                            <h3 class="card-title">Your Latest Entries</h3>
+                        </div>
+                        <button class="btn btn-ghost btn-sm" @onclick="GoToEntries">View All</button>
+                    </div>
+                    <div class="entries-list">
+                        @foreach (var entry in _recentEntries)
+                        {
+                            <div class="recent-entry" @onclick="@(() => GoToEntry(entry.EntryId))">
+                                <span class="entry-mood">@entry.PrimaryMood.Emoji</span>
+                                <div class="entry-info">
+                                    <div class="entry-date">@entry.EntryDate.ToDateTime(TimeOnly.MinValue).ToString("MMM d, yyyy")</div>
+                                    <div class="entry-preview">@GetPreview(entry.Content)</div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
         </div>
-        <div class="card stat-mini">
-            <div class="stat-mini-value">@_dominantMood</div>
-            <div class="stat-mini-label">Most Common</div>
+
+        <div class="dashboard-aside">
+            <div class="streak-widget">
+                <div class="streak-top">
+                    <span class="streak-icon">🔥</span>
+                    <div>
+                        <div class="streak-count">@_streakCount Day Streak</div>
+                        <div class="streak-label">Keep up the great work!</div>
+                    </div>
+                </div>
+                <div class="streak-progress">
+                    <div class="progress-bar">
+                        <span style="@($"width:{Math.Min(_streakCount * 3, 100)}%")"></span>
+                    </div>
+                    <div class="progress-hint">Streak goals: 7 / 14 / 30 days</div>
+                </div>
+            </div>
         </div>
     </div>
+    }
 </div>
+
+<style>
+    .loading-skeleton {
+        animation: skeletonFadeIn 0.3s ease;
+    }
+    
+    @@keyframes skeletonFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+    
+    .skeleton-hero {
+        background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+        border-radius: 20px;
+        padding: 2.5rem;
+        margin-bottom: 2rem;
+        border: 1px solid #E2E8F0;
+    }
+    
+    .skeleton-line {
+        height: 24px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    
+    .skeleton-line.wide { width: 60%; height: 32px; }
+    .skeleton-line.medium { width: 40%; }
+    
+    .skeleton-buttons {
+        display: flex;
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+    
+    .skeleton-btn {
+        width: 120px;
+        height: 44px;
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 10px;
+    }
+    
+    .skeleton-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 1.5rem;
+    }
+    
+    .skeleton-card {
+        background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+        border-radius: 16px;
+    }
+    
+    .skeleton-card.large { height: 200px; }
+    .skeleton-card.small { height: 80px; }
+    
+    .skeleton-stats {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+    
+    @@keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+    }
+</style>
 
 @code {
     private int _streakCount = 0;
@@ -75,6 +296,7 @@
     private string _dominantMood = "😐";
     private string _username = "User";
     private List<Mood> _quickMoods = new();
+    private List<JournalEntry> _recentEntries = new();
     private bool _isLoading = true;
 
     protected override async Task OnInitializedAsync()
@@ -110,6 +332,13 @@
         var allMoods = await JournalService.GetAllMoodsAsync();
         _quickMoods = allMoods.Where(m => m.Name == "Happy" || m.Name == "Neutral" || m.Name == "Sad").ToList();
         
+        // Load recent entries (excluding today's entry if shown above)
+        _recentEntries = await JournalService.GetRecentEntriesAsync(5);
+        if (_hasTodayEntry)
+        {
+            _recentEntries = _recentEntries.Where(e => e.EntryDate != DateOnly.FromDateTime(DateTime.Today)).Take(4).ToList();
+        }
+        
         _isLoading = false;
     }
     
@@ -121,8 +350,39 @@
         return "Good Evening";
     }
     
+    private string GetPreview(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return "";
+        return content.Length > 80 ? content[..80] + "..." : content;
+    }
+    
     private void StartEntryWithMood(int moodId)
     {
         NavigationManager.NavigateTo($"/editor?mood={moodId}");
+    }
+
+    private void GoToEditor()
+    {
+        NavigationManager.NavigateTo("/editor");
+    }
+
+    private void GoToAnalytics()
+    {
+        NavigationManager.NavigateTo("/analytics");
+    }
+
+    private void GoToCalendar()
+    {
+        NavigationManager.NavigateTo("/calendar");
+    }
+
+    private void GoToEntries()
+    {
+        NavigationManager.NavigateTo("/entries");
+    }
+    
+    private void GoToEntry(int entryId)
+    {
+        NavigationManager.NavigateTo($"/editor/{entryId}");
     }
 }

@@ -200,10 +200,10 @@
         display: grid;
         grid-template-columns: repeat(7, 1fr);
         gap: 8px;
-        background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+        background: var(--bg-white);
         padding: 1.75rem;
         border-radius: 16px;
-        border: 1px solid #E2E8F0;
+        border: 1px solid var(--border-color);
     }
     
     .skeleton-calendar-cell {
@@ -245,7 +245,7 @@
     
     .calendar-nav .btn-ghost {
         font-weight: 600;
-        color: #64748B;
+        color: var(--text-secondary);
         padding: 0.625rem 1rem;
         border-radius: 10px;
         transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
@@ -253,7 +253,7 @@
     
     .calendar-nav .btn-ghost:hover {
         background: #F1F5F9;
-        color: #0fd850;
+        color: var(--primary-dark);
         transform: scale(1.02);
     }
     
@@ -266,7 +266,7 @@
         font-weight: 800;
         margin: 0;
         letter-spacing: -0.02em;
-        background: linear-gradient(135deg, #0F172A 0%, #475569 100%);
+        background: linear-gradient(135deg, var(--text-heading) 0%, var(--text-secondary) 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -295,7 +295,7 @@
         gap: 0.625rem;
         font-size: 0.875rem;
         font-weight: 600;
-        color: #64748B;
+        color: var(--text-secondary);
         transition: transform 0.2s ease;
     }
     
@@ -316,28 +316,28 @@
     }
     
     .legend-dot.mood-bg-happy {
-        background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
-        border: 1px solid #A7F3D0;
+        background: var(--primary-light);
+        border: 1px solid var(--mood-happy-border);
     }
     
     .legend-dot.mood-bg-neutral {
-        background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
-        border: 1px solid #FDE68A;
+        background: var(--mood-neutral-bg);
+        border: 1px solid var(--mood-neutral-border);
     }
     
     .legend-dot.mood-bg-sad {
-        background: linear-gradient(135deg, #FFF1F2 0%, #FEE2E2 100%);
-        border: 1px solid #FECDD3;
+        background: var(--mood-sad-bg);
+        border: 1px solid var(--mood-sad-border);
     }
     
     .legend-dot.no-entry {
-        background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
-        border: 1px solid #E2E8F0;
+        background: var(--bg-paper);
+        border: 1px solid var(--border-color);
     }
     
     .calendar-container {
         padding: 1.75rem;
-        background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+        background: var(--bg-white);
         animation: containerFadeIn 0.5s ease forwards;
         animation-delay: 0.2s;
         opacity: 0;
@@ -359,7 +359,7 @@
         text-align: center;
         font-size: 0.75rem;
         font-weight: 800;
-        color: #94A3B8;
+        color: var(--text-muted);
         text-transform: uppercase;
         letter-spacing: 0.08em;
         background-color: transparent;
@@ -370,7 +370,7 @@
         aspect-ratio: 1;
         padding: 0.5rem;
         text-align: center;
-        background: linear-gradient(135deg, #F8FAFC 0%, #F1F5F9 100%);
+        background: var(--bg-paper);
         border-radius: 12px;
         cursor: pointer;
         transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), 
@@ -402,13 +402,13 @@
     }
     
     .calendar-cell.today {
-        border-color: #0fd850;
+        border-color: var(--primary);
         background: linear-gradient(135deg, #E8FDF0 0%, #D1FAE5 100%);
         box-shadow: 0 0 0 4px rgba(15, 216, 80, 0.12);
     }
     
     .calendar-cell.has-happy {
-        background: linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%);
+        background: var(--primary-light);
         border-color: #A7F3D0;
     }
     
@@ -417,7 +417,7 @@
     }
     
     .calendar-cell.has-neutral {
-        background: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+        background: var(--mood-neutral-bg);
         border-color: #FDE68A;
     }
     
@@ -426,7 +426,7 @@
     }
     
     .calendar-cell.has-sad {
-        background: linear-gradient(135deg, #FFF1F2 0%, #FEE2E2 100%);
+        background: var(--mood-sad-bg);
         border-color: #FECDD3;
     }
     
@@ -442,7 +442,7 @@
     }
     
     .calendar-cell.today .calendar-day {
-        color: #0fd850;
+        color: var(--primary-dark);
     }
     
     .calendar-mood {
@@ -466,7 +466,7 @@
     .calendar-stats .stat-mini {
         text-align: center;
         padding: 1.5rem 1rem;
-        background: linear-gradient(135deg, #FFFFFF 0%, #FAFBFC 100%);
+        background: var(--bg-white);
         position: relative;
         overflow: hidden;
         animation: statSlideIn 0.4s ease forwards;
@@ -524,7 +524,7 @@
     .stat-mini-label {
         font-size: 0.8125rem;
         font-weight: 600;
-        color: #64748B;
+        color: var(--text-secondary);
         margin-top: 0.375rem;
     }
     

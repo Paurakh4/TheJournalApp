@@ -1,18 +1,29 @@
 /* ============================================
-   MAIN LAYOUT
-   Premium app layout with dark sidebar and
-   enhanced visual effects
+   MAIN LAYOUT - INK & PAPER EDITION
+   A warm, editorial journal aesthetic with
+   elegant sidebar and paper-like content area
    ============================================ */
 
 .app-layout {
     display: flex;
     min-height: 100vh;
     overflow-x: hidden;
-    background: linear-gradient(135deg, #FAFBFC 0%, #F1F5F9 100%);
+    background: linear-gradient(180deg, #fdfcfa 0%, #f5f0e8 50%, #f0ebe2 100%);
     position: relative;
 }
 
-/* Sidebar Container */
+/* Subtle paper grain texture */
+.app-layout::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    opacity: 0.02;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* Sidebar Container - Deep Ink */
 .sidebar {
     width: 280px;
     min-width: 280px;
@@ -24,14 +35,31 @@
     overscroll-behavior: contain;
     flex-shrink: 0;
     z-index: 100;
-    background: linear-gradient(180deg, #0F172A 0%, #1E293B 100%);
+    background: linear-gradient(180deg, #1a1a2e 0%, #252540 50%, #1a1a2e 100%);
     box-shadow: 
-        4px 0 32px rgba(15, 23, 42, 0.2),
-        1px 0 0 rgba(255, 255, 255, 0.05);
-    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        4px 0 40px rgba(26, 26, 46, 0.25),
+        1px 0 0 rgba(201, 168, 124, 0.08);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Custom scrollbar for sidebar */
+/* Decorative sidebar accent */
+.sidebar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(180deg, 
+        transparent 0%, 
+        rgba(201, 168, 124, 0.15) 20%, 
+        rgba(201, 168, 124, 0.25) 50%, 
+        rgba(201, 168, 124, 0.15) 80%, 
+        transparent 100%);
+    pointer-events: none;
+}
+
+/* Elegant scrollbar for sidebar */
 .sidebar::-webkit-scrollbar {
     width: 6px;
 }
@@ -41,13 +69,13 @@
 }
 
 .sidebar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(201, 168, 124, 0.2);
     border-radius: 3px;
     transition: background 0.2s ease;
 }
 
 .sidebar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(201, 168, 124, 0.35);
 }
 
 /* Main Content Area */
@@ -59,42 +87,43 @@
     overflow-x: hidden;
     height: 100vh;
     position: relative;
+    z-index: 1;
 }
 
-/* Subtle decorative elements with enhanced visuals */
+/* Elegant decorative elements */
 .main-content::before {
     content: '';
     position: fixed;
-    top: -250px;
-    right: -250px;
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, rgba(15, 216, 80, 0.08) 0%, transparent 70%);
+    top: -150px;
+    right: -150px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(201, 168, 124, 0.08) 0%, transparent 70%);
     pointer-events: none;
     z-index: 0;
-    animation: floatGlow 20s ease-in-out infinite;
+    animation: softFloat 25s ease-in-out infinite;
 }
 
 .main-content::after {
     content: '';
     position: fixed;
     bottom: -200px;
-    left: 150px;
-    width: 500px;
-    height: 500px;
-    background: radial-gradient(circle, rgba(249, 240, 71, 0.06) 0%, transparent 70%);
+    left: 100px;
+    width: 450px;
+    height: 450px;
+    background: radial-gradient(circle, rgba(201, 168, 124, 0.05) 0%, transparent 70%);
     pointer-events: none;
     z-index: 0;
-    animation: floatGlow 25s ease-in-out infinite reverse;
+    animation: softFloat 30s ease-in-out infinite reverse;
 }
 
-@keyframes floatGlow {
+@keyframes softFloat {
     0%, 100% {
         transform: translate(0, 0) scale(1);
-        opacity: 0.8;
+        opacity: 0.7;
     }
     50% {
-        transform: translate(40px, 30px) scale(1.1);
+        transform: translate(30px, 20px) scale(1.08);
         opacity: 1;
     }
 }
@@ -106,13 +135,13 @@
     margin: 0 auto;
     position: relative;
     z-index: 1;
-    animation: contentFadeIn 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
+    animation: pageReveal 0.6s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
-@keyframes contentFadeIn {
+@keyframes pageReveal {
     from {
         opacity: 0;
-        transform: translateY(12px);
+        transform: translateY(16px);
     }
     to {
         opacity: 1;
@@ -138,8 +167,12 @@
         height: auto;
         position: relative;
         box-shadow: 
-            0 4px 20px rgba(15, 23, 42, 0.15),
-            0 1px 0 rgba(255, 255, 255, 0.05);
+            0 4px 24px rgba(26, 26, 46, 0.2),
+            0 1px 0 rgba(201, 168, 124, 0.1);
+    }
+    
+    .sidebar::before {
+        display: none;
     }
     
     .main-content {

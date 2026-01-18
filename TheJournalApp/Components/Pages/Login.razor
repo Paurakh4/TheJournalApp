@@ -1,0 +1,95 @@
+@page "/login"
+@using TheJournalApp.Services
+@inject JournalService JournalService
+@inject NavigationManager Navigation
+
+<div class="auth-container">
+    <div class="auth-card">
+        <h2>Welcome Back</h2>
+        <p class="auth-subtitle">Login to your journal</p>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="alert alert-danger">@_errorMessage</div>
+        }
+
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" @bind="_username" class="form-control" placeholder="Enter username" />
+        </div>
+
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" @bind="_password" class="form-control" placeholder="Enter password" />
+        </div>
+
+        <button class="btn btn-primary w-100 mt-3" @onclick="HandleLogin">Login</button>
+
+        <div class="auth-footer mt-3">
+            Don't have an account? <a href="/register">Register here</a>
+        </div>
+    </div>
+</div>
+
+<style>
+    .auth-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 80vh;
+    }
+    .auth-card {
+        background: var(--card-bg);
+        padding: 2rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        width: 100%;
+        max-width: 400px;
+    }
+    .auth-subtitle {
+        color: #6c757d;
+        margin-bottom: 1.5rem;
+    }
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+    .form-control {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        background: var(--input-bg);
+        color: var(--text-color);
+    }
+</style>
+
+@code {
+    private string _username = "";
+    private string _password = "";
+    private string _errorMessage = "";
+
+    private async Task HandleLogin()
+    {
+        _errorMessage = "";
+        if (string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_password))
+        {
+            _errorMessage = "Please enter username and password.";
+            return;
+        }
+
+        var success = await JournalService.LoginAsync(_username, _password);
+        if (success)
+        {
+            Navigation.NavigateTo("/");
+        }
+        else
+        {
+            _errorMessage = "Invalid username or password.";
+        }
+    }
+}

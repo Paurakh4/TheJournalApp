@@ -6,6 +6,7 @@ public class UserSettings
     public int UserId { get; set; }
     public bool IsDarkMode { get; set; } = false;
     public string? AppPin { get; set; }
+    public bool RequirePinOnLaunch { get; set; } = false;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation property

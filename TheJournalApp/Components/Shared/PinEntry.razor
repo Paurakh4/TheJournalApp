@@ -1,0 +1,147 @@
+@using System.Text
+
+<div class="pin-entry-overlay">
+    <div class="pin-entry-card">
+        <h3>@Title</h3>
+        <p>@Subtitle</p>
+
+        <div class="pin-dots">
+            @for (int i = 0; i < 4; i++)
+            {
+                <div class="pin-dot @(Pin.Length > i ? "filled" : "")"></div>
+            }
+        </div>
+
+        <div class="keypad">
+            @for (int i = 1; i <= 9; i++)
+            {
+                var num = i;
+                <button class="keypad-btn" @onclick="() => AddDigit(num)">@num</button>
+            }
+            <button class="keypad-btn secondary" @onclick="Cancel">Cancel</button>
+            <button class="keypad-btn" @onclick="() => AddDigit(0)">0</button>
+            <button class="keypad-btn secondary" @onclick="Backspace">⌫</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .pin-entry-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        backdrop-filter: blur(5px);
+    }
+
+    .pin-entry-card {
+        background: var(--bg-elevated, #ffffff);
+        padding: 2rem;
+        border-radius: 16px;
+        text-align: center;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        max-width: 320px;
+        width: 100%;
+        color: var(--text-primary, #000);
+    }
+
+    .pin-dots {
+        display: flex;
+        justify-content: center;
+        gap: 12px;
+        margin: 24px 0;
+    }
+
+    .pin-dot {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 2px solid var(--primary, #c9a87c);
+        transition: all 0.2s ease;
+    }
+
+    .pin-dot.filled {
+        background-color: var(--primary, #c9a87c);
+    }
+
+    .keypad {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-top: 24px;
+    }
+
+    .keypad-btn {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        border: none;
+        background: var(--bg-base, #f8f5f0);
+        font-size: 24px;
+        font-weight: 500;
+        color: var(--text-primary, #1a1a2e);
+        cursor: pointer;
+        transition: background-color 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .keypad-btn:hover {
+        background: var(--primary-light, #f5efe6);
+    }
+
+    .keypad-btn:active {
+        background: var(--primary, #c9a87c);
+        color: white;
+    }
+
+    .keypad-btn.secondary {
+        font-size: 16px;
+        background: transparent;
+    }
+</style>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Enter PIN";
+    [Parameter] public string Subtitle { get; set; } = "Please enter your 4-digit PIN";
+    [Parameter] public EventCallback<string> OnPinEntered { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string Pin = "";
+
+    private async Task AddDigit(int digit)
+    {
+        if (Pin.Length < 4)
+        {
+            Pin += digit.ToString();
+            if (Pin.Length == 4)
+            {
+                // Small delay to show the last dot filled
+                await Task.Delay(100);
+                await OnPinEntered.InvokeAsync(Pin);
+                Pin = ""; 
+            }
+        }
+    }
+
+    private void Backspace()
+    {
+        if (Pin.Length > 0)
+        {
+            Pin = Pin.Substring(0, Pin.Length - 1);
+        }
+    }
+
+    private async Task Cancel()
+    {
+        Pin = "";
+        await OnCancel.InvokeAsync();
+    }
+}

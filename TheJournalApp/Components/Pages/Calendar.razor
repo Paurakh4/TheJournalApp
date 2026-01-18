@@ -564,7 +564,6 @@
     
     protected override async Task OnInitializedAsync()
     {
-        await JournalService.EnsureUserExistsAsync();
         await LoadEntriesAsync();
     }
     

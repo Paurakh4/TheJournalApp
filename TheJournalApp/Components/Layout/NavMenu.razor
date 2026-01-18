@@ -1,4 +1,8 @@
+@using TheJournalApp.Services
+@using TheJournalApp.Data.Entities
 @inject IJSRuntime JS
+@inject JournalService JournalService
+@inject NavigationManager Navigation
 
 <nav class="nav-sidebar">
     <!-- Brand Section -->
@@ -16,11 +20,11 @@
     <!-- User Profile -->
     <div class="nav-profile">
         <div class="profile-avatar">
-            <span class="avatar-text">P</span>
+            <span class="avatar-text">@(_currentUser?.Username.FirstOrDefault().ToString().ToUpper() ?? "U")</span>
             <span class="profile-status"></span>
         </div>
         <div class="profile-info">
-            <span class="profile-name">Welcome back</span>
+            <span class="profile-name">@(_currentUser?.Username ?? "Guest")</span>
             <span class="profile-greeting">@GetGreeting()</span>
         </div>
     </div>
@@ -59,6 +63,10 @@
                 <i data-lucide="sliders" class="nav-link-icon"></i>
                 <span class="nav-link-text">Settings</span>
             </NavLink>
+            <button class="nav-link btn-logout" @onclick="HandleLogout">
+                <i data-lucide="log-out" class="nav-link-icon"></i>
+                <span class="nav-link-text">Logout</span>
+            </button>
         </div>
     </div>
 
@@ -79,13 +87,44 @@
     </div>
 </nav>
 
+<style>
+    .btn-logout {
+        width: 100%;
+        text-align: left;
+        background: none;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        color: inherit;
+        font: inherit;
+    }
+    .btn-logout:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: #fff;
+    }
+</style>
+
 @code {
+    private User? _currentUser;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _currentUser = await JournalService.GetCurrentUserAsync();
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             await JS.InvokeVoidAsync("lucide.createIcons");
         }
+    }
+
+    private void HandleLogout()
+    {
+        JournalService.Logout();
     }
 
     private string GetGreeting()

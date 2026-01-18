@@ -61,6 +61,22 @@
 
     <div class="dashboard-grid">
         <div class="dashboard-main">
+            <div class="streak-widget">
+                <div class="streak-top">
+                    <span class="streak-icon">🔥</span>
+                    <div>
+                        <div class="streak-count">@_streakCount Day Streak</div>
+                        <div class="streak-label">Keep up the great work!</div>
+                    </div>
+                </div>
+                <div class="streak-progress">
+                    <div class="progress-bar">
+                        <span style="@($"width:{Math.Min(_streakCount * 3, 100)}%")"></span>
+                    </div>
+                    <div class="progress-hint">Streak goals: 7 / 14 / 30 days</div>
+                </div>
+            </div>
+
             <div class="card focus-card">
                 <div class="card-heading">
                     <div>
@@ -191,24 +207,6 @@
                 </div>
             }
         </div>
-
-        <div class="dashboard-aside">
-            <div class="streak-widget">
-                <div class="streak-top">
-                    <span class="streak-icon">🔥</span>
-                    <div>
-                        <div class="streak-count">@_streakCount Day Streak</div>
-                        <div class="streak-label">Keep up the great work!</div>
-                    </div>
-                </div>
-                <div class="streak-progress">
-                    <div class="progress-bar">
-                        <span style="@($"width:{Math.Min(_streakCount * 3, 100)}%")"></span>
-                    </div>
-                    <div class="progress-hint">Streak goals: 7 / 14 / 30 days</div>
-                </div>
-            </div>
-        </div>
     </div>
     }
 </div>
@@ -301,7 +299,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await JournalService.EnsureUserExistsAsync();
         await LoadDataAsync();
     }
 

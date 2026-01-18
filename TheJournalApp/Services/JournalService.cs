@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
 using TheJournalApp.Data;
 using TheJournalApp.Data.Entities;
 
@@ -7,43 +9,82 @@ namespace TheJournalApp.Services;
 public class JournalService
 {
     private readonly JournalDbContext _context;
-    private int _currentUserId = 1;
+    private int? _currentUserId = null;
+
+    public event Action? OnAuthStateChanged;
+
+    public bool IsAuthenticated => _currentUserId.HasValue;
 
     public JournalService(JournalDbContext context)
     {
         _context = context;
     }
 
-    public async Task EnsureUserExistsAsync()
+    public async Task<bool> LoginAsync(string username, string password)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserId == _currentUserId);
-        if (user == null)
-        {
-            user = new User
-            {
-                Username = "User",
-                PasswordHash = "demo",
-                CreatedAt = DateTime.UtcNow
-            };
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-            _currentUserId = user.UserId;
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Username == username);
 
-            _context.Streaks.Add(new Streak { UserId = user.UserId });
-            _context.UserSettings.Add(new UserSettings { UserId = user.UserId });
-            await _context.SaveChangesAsync();
-        }
-        
-        // Recalculate streak on startup to sync with actual entries
+        if (user == null) return false;
+
+        var hash = HashPassword(password);
+        if (user.PasswordHash != hash) return false;
+
+        _currentUserId = user.UserId;
         await RecalculateStreakAsync();
+        OnAuthStateChanged?.Invoke();
+        return true;
     }
+
+    public async Task<bool> RegisterAsync(string username, string password)
+    {
+        if (await _context.Users.AnyAsync(u => u.Username == username))
+            return false;
+
+        var user = new User
+        {
+            Username = username,
+            PasswordHash = HashPassword(password),
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+
+        _currentUserId = user.UserId;
+
+        // Initialize user data
+        _context.Streaks.Add(new Streak { UserId = user.UserId });
+        _context.UserSettings.Add(new UserSettings { UserId = user.UserId });
+        await _context.SaveChangesAsync();
+
+        OnAuthStateChanged?.Invoke();
+        return true;
+    }
+
+    public void Logout()
+    {
+        _currentUserId = null;
+        OnAuthStateChanged?.Invoke();
+    }
+
+    private string HashPassword(string password)
+    {
+        using var sha256 = SHA256.Create();
+        var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
+        return Convert.ToBase64String(bytes);
+    }
+
+    // EnsureSeedDataAsync method removed as it is no longer needed
+
 
     public async Task<User?> GetCurrentUserAsync()
     {
+        if (!_currentUserId.HasValue) return null;
         return await _context.Users
             .Include(u => u.Settings)
             .Include(u => u.Streak)
-            .FirstOrDefaultAsync(u => u.UserId == _currentUserId);
+            .FirstOrDefaultAsync(u => u.UserId == _currentUserId.Value);
     }
 
     public async Task<List<Mood>> GetAllMoodsAsync()
@@ -53,44 +94,49 @@ public class JournalService
 
     public async Task<List<Tag>> GetAvailableTagsAsync()
     {
+        if (!_currentUserId.HasValue) return new List<Tag>();
         return await _context.Tags
-            .Where(t => t.UserId == null || t.UserId == _currentUserId)
+            .Where(t => t.UserId == null || t.UserId == _currentUserId.Value)
             .OrderBy(t => t.Name)
             .ToListAsync();
     }
 
     public async Task<JournalEntry?> GetTodayEntryAsync()
     {
+        if (!_currentUserId.HasValue) return null;
         var today = DateOnly.FromDateTime(DateTime.Today);
         return await _context.JournalEntries
             .Include(e => e.PrimaryMood)
             .Include(e => e.SecondaryMoods).ThenInclude(sm => sm.Mood)
             .Include(e => e.EntryTags).ThenInclude(et => et.Tag)
-            .FirstOrDefaultAsync(e => e.UserId == _currentUserId && e.EntryDate == today);
+            .FirstOrDefaultAsync(e => e.UserId == _currentUserId.Value && e.EntryDate == today);
     }
 
     public async Task<JournalEntry?> GetEntryByIdAsync(int entryId)
     {
+        if (!_currentUserId.HasValue) return null;
         return await _context.JournalEntries
             .Include(e => e.PrimaryMood)
             .Include(e => e.SecondaryMoods).ThenInclude(sm => sm.Mood)
             .Include(e => e.EntryTags).ThenInclude(et => et.Tag)
-            .FirstOrDefaultAsync(e => e.EntryId == entryId && e.UserId == _currentUserId);
+            .FirstOrDefaultAsync(e => e.EntryId == entryId && e.UserId == _currentUserId.Value);
     }
 
     public async Task<JournalEntry?> GetEntryByDateAsync(DateOnly date)
     {
+        if (!_currentUserId.HasValue) return null;
         return await _context.JournalEntries
             .Include(e => e.PrimaryMood)
-            .FirstOrDefaultAsync(e => e.UserId == _currentUserId && e.EntryDate == date);
+            .FirstOrDefaultAsync(e => e.UserId == _currentUserId.Value && e.EntryDate == date);
     }
 
     public async Task<List<JournalEntry>> GetEntriesAsync(string? searchQuery = null, int? moodId = null, int? tagId = null, DateOnly? startDate = null, DateOnly? endDate = null)
     {
+        if (!_currentUserId.HasValue) return new List<JournalEntry>();
         var query = _context.JournalEntries
             .Include(e => e.PrimaryMood)
             .Include(e => e.EntryTags).ThenInclude(et => et.Tag)
-            .Where(e => e.UserId == _currentUserId);
+            .Where(e => e.UserId == _currentUserId.Value);
 
         if (!string.IsNullOrWhiteSpace(searchQuery))
             query = query.Where(e => e.Content.ToLower().Contains(searchQuery.ToLower()));
@@ -112,21 +158,23 @@ public class JournalService
 
     public async Task<List<JournalEntry>> GetEntriesForMonthAsync(int year, int month)
     {
+        if (!_currentUserId.HasValue) return new List<JournalEntry>();
         var startDate = new DateOnly(year, month, 1);
         var endDate = startDate.AddMonths(1).AddDays(-1);
 
         return await _context.JournalEntries
             .Include(e => e.PrimaryMood)
-            .Where(e => e.UserId == _currentUserId && e.EntryDate >= startDate && e.EntryDate <= endDate)
+            .Where(e => e.UserId == _currentUserId.Value && e.EntryDate >= startDate && e.EntryDate <= endDate)
             .ToListAsync();
     }
 
     public async Task<List<JournalEntry>> GetRecentEntriesAsync(int count = 5)
     {
+        if (!_currentUserId.HasValue) return new List<JournalEntry>();
         return await _context.JournalEntries
             .Include(e => e.PrimaryMood)
             .Include(e => e.EntryTags).ThenInclude(et => et.Tag)
-            .Where(e => e.UserId == _currentUserId)
+            .Where(e => e.UserId == _currentUserId.Value)
             .OrderByDescending(e => e.EntryDate)
             .Take(count)
             .ToListAsync();
@@ -134,30 +182,34 @@ public class JournalService
 
     public async Task<int> GetTotalEntriesCountAsync()
     {
-        return await _context.JournalEntries.CountAsync(e => e.UserId == _currentUserId);
+        if (!_currentUserId.HasValue) return 0;
+        return await _context.JournalEntries.CountAsync(e => e.UserId == _currentUserId.Value);
     }
 
     public async Task<int> GetThisWeekEntriesCountAsync()
     {
+        if (!_currentUserId.HasValue) return 0;
         var today = DateOnly.FromDateTime(DateTime.Today);
         var startOfWeek = today.AddDays(-(int)today.DayOfWeek);
         return await _context.JournalEntries
-            .CountAsync(e => e.UserId == _currentUserId && e.EntryDate >= startOfWeek);
+            .CountAsync(e => e.UserId == _currentUserId.Value && e.EntryDate >= startOfWeek);
     }
 
     public async Task<Streak?> GetStreakAsync()
     {
-        return await _context.Streaks.FirstOrDefaultAsync(s => s.UserId == _currentUserId);
+        if (!_currentUserId.HasValue) return null;
+        return await _context.Streaks.FirstOrDefaultAsync(s => s.UserId == _currentUserId.Value);
     }
 
     public async Task RecalculateStreakAsync()
     {
-        var streak = await _context.Streaks.FirstOrDefaultAsync(s => s.UserId == _currentUserId);
+        if (!_currentUserId.HasValue) return;
+        var streak = await _context.Streaks.FirstOrDefaultAsync(s => s.UserId == _currentUserId.Value);
         if (streak == null) return;
 
         var today = DateOnly.FromDateTime(DateTime.Today);
         var entries = await _context.JournalEntries
-            .Where(e => e.UserId == _currentUserId)
+            .Where(e => e.UserId == _currentUserId.Value)
             .Select(e => e.EntryDate)
             .OrderByDescending(d => d)
             .ToListAsync();
@@ -195,8 +247,9 @@ public class JournalService
 
     public async Task<string> GetDominantMoodEmojiAsync()
     {
+        if (!_currentUserId.HasValue) return "😐";
         var moodCounts = await _context.JournalEntries
-            .Where(e => e.UserId == _currentUserId)
+            .Where(e => e.UserId == _currentUserId.Value)
             .GroupBy(e => e.PrimaryMoodId)
             .Select(g => new { MoodId = g.Key, Count = g.Count() })
             .OrderByDescending(x => x.Count)
@@ -211,13 +264,14 @@ public class JournalService
     public async Task<JournalEntry> SaveEntryAsync(int? entryId, int primaryMoodId, string content, 
         List<int> secondaryMoodIds, List<int> tagIds, DateOnly entryDate)
     {
+        if (!_currentUserId.HasValue) throw new InvalidOperationException("User not authenticated");
         JournalEntry entry;
 
         // Check if an entry already exists for this date if we're trying to create a new one
         if (!entryId.HasValue)
         {
             var existingEntry = await _context.JournalEntries
-                .FirstOrDefaultAsync(e => e.UserId == _currentUserId && e.EntryDate == entryDate);
+                .FirstOrDefaultAsync(e => e.UserId == _currentUserId.Value && e.EntryDate == entryDate);
             
             if (existingEntry != null)
             {
@@ -244,7 +298,7 @@ public class JournalService
         {
             entry = new JournalEntry
             {
-                UserId = _currentUserId,
+                UserId = _currentUserId.Value,
                 PrimaryMoodId = primaryMoodId,
                 Content = content,
                 WordCount = content.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length,
@@ -275,8 +329,9 @@ public class JournalService
 
     public async Task DeleteEntryAsync(int entryId)
     {
+        if (!_currentUserId.HasValue) return;
         var entry = await _context.JournalEntries.FindAsync(entryId);
-        if (entry != null && entry.UserId == _currentUserId)
+        if (entry != null && entry.UserId == _currentUserId.Value)
         {
             _context.JournalEntries.Remove(entry);
             await _context.SaveChangesAsync();
@@ -286,7 +341,8 @@ public class JournalService
 
     public async Task<Tag> CreateTagAsync(string name)
     {
-        var tag = new Tag { UserId = _currentUserId, Name = name, IsBuiltin = false };
+        if (!_currentUserId.HasValue) throw new InvalidOperationException("User not authenticated");
+        var tag = new Tag { UserId = _currentUserId.Value, Name = name, IsBuiltin = false };
         _context.Tags.Add(tag);
         await _context.SaveChangesAsync();
         return tag;
@@ -299,11 +355,12 @@ public class JournalService
 
     public async Task<AnalyticsData> GetAnalyticsAsync()
     {
+        if (!_currentUserId.HasValue) return new AnalyticsData();
         var streak = await GetStreakAsync();
         var entries = await _context.JournalEntries
             .Include(e => e.PrimaryMood)
             .Include(e => e.EntryTags).ThenInclude(et => et.Tag)
-            .Where(e => e.UserId == _currentUserId)
+            .Where(e => e.UserId == _currentUserId.Value)
             .ToListAsync();
 
         var thisMonth = DateTime.Today.Month;
@@ -364,27 +421,45 @@ public class JournalService
 
     public async Task<UserSettings?> GetUserSettingsAsync()
     {
-        return await _context.UserSettings.FirstOrDefaultAsync(s => s.UserId == _currentUserId);
+        if (!_currentUserId.HasValue) return null;
+        return await _context.UserSettings.FirstOrDefaultAsync(s => s.UserId == _currentUserId.Value);
     }
 
-    public async Task SaveUserSettingsAsync(bool isDarkMode, string? appPin)
+    public async Task SaveUserSettingsAsync(bool isDarkMode, string? appPin, bool requirePinOnLaunch)
     {
-        var settings = await _context.UserSettings.FirstOrDefaultAsync(s => s.UserId == _currentUserId);
+        if (!_currentUserId.HasValue) return;
+        var settings = await _context.UserSettings.FirstOrDefaultAsync(s => s.UserId == _currentUserId.Value);
         if (settings != null)
         {
             settings.IsDarkMode = isDarkMode;
             if (appPin != null) settings.AppPin = appPin;
+            settings.RequirePinOnLaunch = requirePinOnLaunch;
             settings.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
         }
     }
 
+    public async Task InitializeDatabaseAsync()
+    {
+        try 
+        {
+            // Ensure the new column exists
+            await _context.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"UserSettings\" ADD COLUMN IF NOT EXISTS \"RequirePinOnLaunch\" BOOLEAN DEFAULT FALSE;");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating schema: {ex.Message}");
+        }
+    }
+
     public async Task DeleteAllDataAsync()
     {
-        var entries = await _context.JournalEntries.Where(e => e.UserId == _currentUserId).ToListAsync();
+        if (!_currentUserId.HasValue) return;
+        var entries = await _context.JournalEntries.Where(e => e.UserId == _currentUserId.Value).ToListAsync();
         _context.JournalEntries.RemoveRange(entries);
 
-        var streak = await _context.Streaks.FirstOrDefaultAsync(s => s.UserId == _currentUserId);
+        var streak = await _context.Streaks.FirstOrDefaultAsync(s => s.UserId == _currentUserId.Value);
         if (streak != null)
         {
             streak.CurrentStreak = 0;
@@ -392,6 +467,23 @@ public class JournalService
             streak.LastEntryDate = null;
         }
 
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task LogExportAsync(DateOnly startDate, DateOnly endDate, string format = "PDF")
+    {
+        if (!_currentUserId.HasValue) return;
+
+        var log = new ExportLog
+        {
+            UserId = _currentUserId.Value,
+            RangeStart = startDate,
+            RangeEnd = endDate,
+            Format = format,
+            ExportedAt = DateTime.UtcNow
+        };
+
+        _context.ExportLogs.Add(log);
         await _context.SaveChangesAsync();
     }
 }

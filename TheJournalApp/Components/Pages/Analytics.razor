@@ -207,7 +207,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await JournalService.EnsureUserExistsAsync();
         _analytics = await JournalService.GetAnalyticsAsync();
         _isLoading = false;
     }

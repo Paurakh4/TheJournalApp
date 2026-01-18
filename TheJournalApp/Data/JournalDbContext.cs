@@ -40,6 +40,7 @@ public class JournalDbContext : DbContext
             entity.HasIndex(e => e.UserId).IsUnique();
             entity.Property(e => e.IsDarkMode).HasDefaultValue(false);
             entity.Property(e => e.AppPin).HasMaxLength(255);
+            entity.Property(e => e.RequirePinOnLaunch).HasDefaultValue(false);
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             
             entity.HasOne(e => e.User)

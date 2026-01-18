@@ -1,9 +1,31 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@using TheJournalApp.Services
+@using TheJournalApp.Components.Shared
+@inject JournalService JournalService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@implements IDisposable
 
+@if (_isLocked)
+{
+    <PinEntry Title="Journal Locked" Subtitle="Enter PIN to unlock" OnPinEntered="UnlockApp" />
+}
+else if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <div style="padding: 20px; color: red; background: #ffeeee; border: 1px solid red; margin: 20px;">
+        <h3>Error</h3>
+        <pre>@_errorMessage</pre>
+    </div>
+}
+else
+{
 <div class="app-layout">
-    <aside class="sidebar">
-        <NavMenu/>
-    </aside>
+    @if (JournalService.IsAuthenticated)
+    {
+        <aside class="sidebar">
+            <NavMenu/>
+        </aside>
+    }
 
     <main class="main-content">
         <div class="content-wrapper">
@@ -11,3 +33,110 @@
         </div>
     </main>
 </div>
+}
+
+@code {
+    private bool _isLocked = false;
+    private string? _correctPin;
+    private string _errorMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            JournalService.OnAuthStateChanged += AuthenticationStateChanged;
+            Navigation.LocationChanged += LocationChanged;
+            
+            // Initial check
+            CheckAuthentication();
+            await CheckPinRequirement();
+        }
+        catch (Exception ex)
+        {
+            _errorMessage = ex.ToString();
+            StateHasChanged();
+        }
+    }
+
+    private async void AuthenticationStateChanged()
+    {
+        CheckAuthentication();
+        await CheckPinRequirement();
+        StateHasChanged();
+    }
+
+    private void LocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        CheckAuthentication();
+    }
+
+    private void CheckAuthentication()
+    {
+        var relativePath = Navigation.ToBaseRelativePath(Navigation.Uri).ToLower();
+        // Remove query strings if any
+        if (relativePath.Contains("?"))
+        {
+            relativePath = relativePath.Split('?')[0];
+        }
+
+        var isPublicPage = relativePath.Equals("login") || relativePath.Equals("register");
+
+        if (!JournalService.IsAuthenticated)
+        {
+            if (!isPublicPage)
+            {
+                Navigation.NavigateTo("/login");
+            }
+        }
+        else
+        {
+            // If authenticated and trying to access login/register, redirect to home
+            if (isPublicPage)
+            {
+                Navigation.NavigateTo("/");
+            }
+        }
+    }
+    
+    private async Task CheckPinRequirement()
+    {
+        if (JournalService.IsAuthenticated)
+        {
+            var settings = await JournalService.GetUserSettingsAsync();
+            // Check if PIN is required and set
+            if (settings != null && settings.RequirePinOnLaunch && !string.IsNullOrEmpty(settings.AppPin))
+            {
+                _isLocked = true;
+                _correctPin = settings.AppPin;
+                // We don't call StateHasChanged here because it's called in OnInitializedAsync/AuthenticationStateChanged
+            }
+            else
+            {
+                _isLocked = false;
+            }
+        }
+        else
+        {
+            _isLocked = false;
+        }
+    }
+
+    private async Task UnlockApp(string pin)
+    {
+        if (pin == _correctPin)
+        {
+            _isLocked = false;
+            StateHasChanged();
+        }
+        else
+        {
+             await JS.InvokeVoidAsync("alert", "Incorrect PIN");
+        }
+    }
+
+    public void Dispose()
+    {
+        JournalService.OnAuthStateChanged -= AuthenticationStateChanged;
+        Navigation.LocationChanged -= LocationChanged;
+    }
+}

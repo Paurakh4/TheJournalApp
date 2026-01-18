@@ -1,7 +1,10 @@
 @page "/settings"
 @using TheJournalApp.Services
 @using TheJournalApp.Data.Entities
+@using TheJournalApp.Components.Shared
 @inject JournalService JournalService
+@inject PdfExportService PdfService
+@inject IJSRuntime JS
 
 <div class="settings-page">
     @if (_isLoading)
@@ -88,7 +91,7 @@
                     <div class="settings-item-description">Ask for PIN every time the app opens</div>
                 </div>
                 <label class="toggle">
-                    <input type="checkbox" @bind="requirePinOnLaunch" disabled="@(!hasPinSet)" />
+                    <input type="checkbox" checked="@requirePinOnLaunch" @onchange="ToggleRequirePin" disabled="@(!hasPinSet)" />
                     <span class="toggle-slider"></span>
                 </label>
             </div>
@@ -610,6 +613,11 @@
     }
 </style>
 
+@if (showPinEntry)
+{
+    <PinEntry Title="@pinTitle" Subtitle="@pinSubtitle" OnPinEntered="HandlePinEntered" OnCancel="CancelPinEntry" />
+}
+
 @code {
     private bool isDarkMode = false;
     private bool isCompactView = false;
@@ -622,23 +630,103 @@
     private DateTime exportEndDate = DateTime.Today;
     private bool _isLoading = true;
     
+    // PIN states
+    private bool showPinEntry = false;
+    private string pinTitle = "";
+    private string pinSubtitle = "";
+    private string? _tempPin;
+    private PinStep _pinStep = PinStep.None;
+    private UserSettings? _userSettings;
+
+    private enum PinStep { None, EnterOld, SetNew, ConfirmNew }
+    
     protected override async Task OnInitializedAsync()
     {
-        await JournalService.EnsureUserExistsAsync();
-        var settings = await JournalService.GetUserSettingsAsync();
-        if (settings != null)
+        _userSettings = await JournalService.GetUserSettingsAsync();
+        if (_userSettings != null)
         {
-            isDarkMode = settings.IsDarkMode;
-            hasPinSet = !string.IsNullOrEmpty(settings.AppPin);
+            isDarkMode = _userSettings.IsDarkMode;
+            hasPinSet = !string.IsNullOrEmpty(_userSettings.AppPin);
+            requirePinOnLaunch = _userSettings.RequirePinOnLaunch;
         }
         _isLoading = false;
     }
     
-    private async Task SetAppPin()
+    private void SetAppPin()
     {
-        // Show PIN setup dialog
-        hasPinSet = true;
-        await JournalService.SaveUserSettingsAsync(isDarkMode, "1234"); // Demo PIN
+        if (hasPinSet)
+        {
+            _pinStep = PinStep.EnterOld;
+            pinTitle = "Enter Current PIN";
+            pinSubtitle = "Please enter your current PIN to change it";
+        }
+        else
+        {
+            _pinStep = PinStep.SetNew;
+            pinTitle = "Set App PIN";
+            pinSubtitle = "Create a 4-digit PIN to protect your journal";
+        }
+        showPinEntry = true;
+    }
+
+    private async Task ToggleRequirePin(ChangeEventArgs e)
+    {
+        requirePinOnLaunch = (bool)(e.Value ?? false);
+        var pin = _userSettings?.AppPin;
+        await JournalService.SaveUserSettingsAsync(isDarkMode, pin, requirePinOnLaunch);
+    }
+
+    private async Task HandlePinEntered(string pin)
+    {
+        switch (_pinStep)
+        {
+            case PinStep.EnterOld:
+                if (pin == _userSettings?.AppPin)
+                {
+                    _pinStep = PinStep.SetNew;
+                    pinTitle = "Set New PIN";
+                    pinSubtitle = "Enter your new 4-digit PIN";
+                }
+                else
+                {
+                    await JS.InvokeVoidAsync("alert", "Incorrect PIN");
+                    showPinEntry = false;
+                }
+                break;
+
+            case PinStep.SetNew:
+                _tempPin = pin;
+                _pinStep = PinStep.ConfirmNew;
+                pinTitle = "Confirm PIN";
+                pinSubtitle = "Please re-enter your PIN to confirm";
+                break;
+
+            case PinStep.ConfirmNew:
+                if (pin == _tempPin)
+                {
+                    await JournalService.SaveUserSettingsAsync(isDarkMode, pin, requirePinOnLaunch);
+                    // Refresh settings
+                    _userSettings = await JournalService.GetUserSettingsAsync();
+                    hasPinSet = true;
+                    showPinEntry = false;
+                    await JS.InvokeVoidAsync("alert", "PIN set successfully!");
+                }
+                else
+                {
+                    await JS.InvokeVoidAsync("alert", "PINs do not match. Please try again.");
+                    _pinStep = PinStep.SetNew;
+                    pinTitle = "Set New PIN";
+                    pinSubtitle = "Enter your new 4-digit PIN";
+                }
+                break;
+        }
+    }
+
+    private void CancelPinEntry()
+    {
+        showPinEntry = false;
+        _tempPin = null;
+        _pinStep = PinStep.None;
     }
     
     private void ShowExportDialog()
@@ -646,10 +734,32 @@
         showExportOptions = !showExportOptions;
     }
     
-    private void ExportToPdf()
+    private async Task ExportToPdf()
     {
-        // Export logic
+        var entries = await JournalService.GetEntriesAsync(
+            startDate: DateOnly.FromDateTime(exportStartDate),
+            endDate: DateOnly.FromDateTime(exportEndDate)
+        );
+
+        if (!entries.Any())
+        {
+            await JS.InvokeVoidAsync("alert", "No entries found for the selected date range.");
+            return;
+        }
+
+        var user = await JournalService.GetCurrentUserAsync();
+        var username = user?.Username ?? "User";
+
+        var pdfBytes = PdfService.GenerateJournalPdf(entries, DateOnly.FromDateTime(exportStartDate), DateOnly.FromDateTime(exportEndDate), username);
+
+        var filename = $"Journal_Export_{exportStartDate:yyyyMMdd}_{exportEndDate:yyyyMMdd}.pdf";
+        await JS.InvokeVoidAsync("saveAsFile", filename, Convert.ToBase64String(pdfBytes));
+        
+        // Log the export
+        await JournalService.LogExportAsync(DateOnly.FromDateTime(exportStartDate), DateOnly.FromDateTime(exportEndDate));
+        
         showExportOptions = false;
+        await JS.InvokeVoidAsync("alert", "Export successful!");
     }
     
     private void BackupData()
@@ -665,6 +775,6 @@
     private async Task OnDarkModeChanged(ChangeEventArgs e)
     {
         isDarkMode = (bool)(e.Value ?? false);
-        await JournalService.SaveUserSettingsAsync(isDarkMode, null);
+        await JournalService.SaveUserSettingsAsync(isDarkMode, _userSettings?.AppPin, requirePinOnLaunch);
     }
 }

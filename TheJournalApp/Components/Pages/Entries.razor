@@ -1178,7 +1178,6 @@
     
     protected override async Task OnInitializedAsync()
     {
-        await JournalService.EnsureUserExistsAsync();
         _allMoods = await JournalService.GetAllMoodsAsync();
         _availableTags = await JournalService.GetAvailableTagsAsync();
         await LoadEntriesAsync();

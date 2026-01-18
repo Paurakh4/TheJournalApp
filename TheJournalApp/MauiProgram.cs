@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TheJournalApp.Data;
 using TheJournalApp.Services;
@@ -23,12 +23,31 @@ public static class MauiProgram
 
         // Register services
         builder.Services.AddScoped<JournalService>();
+        builder.Services.AddScoped<PdfExportService>();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
         builder.Logging.AddDebug();
 #endif
 
-        return builder.Build();
+        var app = builder.Build();
+
+        // Initialize database
+        using (var scope = app.Services.CreateScope())
+        {
+            var services = scope.ServiceProvider;
+            try
+            {
+                var context = services.GetRequiredService<JournalDbContext>();
+                context.Database.ExecuteSqlRaw("ALTER TABLE \"UserSettings\" ADD COLUMN IF NOT EXISTS \"RequirePinOnLaunch\" BOOLEAN DEFAULT FALSE;");
+            }
+            catch (Exception ex)
+            {
+                var logger = services.GetRequiredService<ILogger<App>>();
+                logger.LogError(ex, "An error occurred while initializing the database.");
+            }
+        }
+
+        return app;
     }
 }

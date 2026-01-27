@@ -1,0 +1,735 @@
+@page "/settings"
+
+@inject IAuthService AuthService
+@inject ISettingsService SettingsService
+@inject ILockService LockService
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Settings - Reflecta</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="flex items-center justify-center h-64">
+        <span class="material-symbols-rounded text-4xl text-accent-primary animate-spin">progress_activity</span>
+    </div>
+}
+else
+{
+<div class="max-w-2xl mx-auto space-y-6">
+    @* Header *@
+    <header>
+        <h1 class="text-2xl md:text-3xl font-bold text-text-primary">Settings</h1>
+        <p class="text-text-secondary">Customize your Reflecta experience</p>
+    </header>
+    
+    @* Profile Section *@
+    <section class="card-elevated">
+        <h2 class="text-lg font-semibold text-text-primary mb-4">Profile</h2>
+        
+        <div class="flex items-center gap-4 mb-6">
+            <div class="avatar-lg bg-accent-primary/20 flex items-center justify-center">
+                <svg class="w-10 h-10 text-accent-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="6" r="4" fill="currentColor"/>
+                    <ellipse cx="12" cy="17" fill="currentColor" opacity=".5" rx="7" ry="4"/>
+                </svg>
+            </div>
+            <div class="flex-1">
+                <h3 class="text-lg font-bold text-text-primary">@_displayName</h3>
+                <p class="text-sm text-text-muted">@_userEmail</p>
+            </div>
+            @if (_isEditingProfile)
+            {
+                <button class="btn-pill-primary px-4 py-2 text-sm" @onclick="SaveProfile" disabled="@_isSavingProfile">
+                    <span class="material-symbols-rounded text-lg">@(_isSavingProfile ? "progress_activity" : "check")</span>
+                    Save
+                </button>
+                <button class="btn-pill-secondary px-4 py-2 text-sm" @onclick="CancelEditProfile">
+                    <span class="material-symbols-rounded text-lg">close</span>
+                </button>
+            }
+            else
+            {
+                <button class="btn-pill-secondary px-4 py-2 text-sm" @onclick="() => _isEditingProfile = true">
+                    <span class="material-symbols-rounded text-lg">edit</span>
+                    Edit
+                </button>
+            }
+        </div>
+        
+        @if (!string.IsNullOrEmpty(_profileMessage))
+        {
+            <div class="mb-4 p-3 rounded-xl @(_profileMessageIsError ? "bg-mood-negative/20 text-mood-negative" : "bg-accent-primary/20 text-accent-primary") text-sm">
+                @_profileMessage
+            </div>
+        }
+        
+        <div class="space-y-4">
+            <SolidInput 
+                Label="Display Name"
+                @bind-Value="_displayName"
+                Icon="badge"
+                Disabled="@(!_isEditingProfile)" />
+            
+            <SolidInput 
+                Label="Email"
+                InputType="email"
+                Value="@_userEmail"
+                Icon="mail"
+                Disabled="true"
+                HelperText="Email cannot be changed" />
+        </div>
+    </section>
+    
+    @* Appearance Section *@
+    <section class="card-elevated">
+        <h2 class="text-lg font-semibold text-text-primary mb-4">Appearance</h2>
+        
+        <div class="space-y-4">
+            <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-rounded text-xl text-text-secondary">@(_darkMode ? "dark_mode" : "light_mode")</span>
+                    <div>
+                        <span class="font-medium text-text-primary">Dark Mode</span>
+                        <p class="text-xs text-text-muted">@(_darkMode ? "Dark theme active" : "Light theme active")</p>
+                    </div>
+                </div>
+                <ToggleSwitch Value="_darkMode" ValueChanged="OnDarkModeChanged" />
+            </div>
+            
+            <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-rounded text-xl text-text-secondary">format_size</span>
+                    <div>
+                        <span class="font-medium text-text-primary">Font Size</span>
+                        <p class="text-xs text-text-muted">Adjust text size</p>
+                    </div>
+                </div>
+                <select class="input-inline-sm text-sm py-2" @bind="_fontSize">
+                    <option value="small">Small</option>
+                    <option value="medium">Medium</option>
+                    <option value="large">Large</option>
+                </select>
+            </div>
+        </div>
+    </section>
+    
+    @* Notifications Section *@
+    <section class="card-elevated">
+        <h2 class="text-lg font-semibold text-text-primary mb-4">Notifications</h2>
+        
+        <div class="space-y-4">
+            <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-rounded text-xl text-text-secondary">notifications</span>
+                    <div>
+                        <span class="font-medium text-text-primary">Daily Reminder</span>
+                        <p class="text-xs text-text-muted">Get reminded to journal</p>
+                    </div>
+                </div>
+                <ToggleSwitch Value="_dailyReminder" ValueChanged="OnDailyReminderChanged" />
+            </div>
+            
+            @if (_dailyReminder)
+            {
+                <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container animate-fade-in">
+                    <div class="flex items-center gap-3">
+                        <span class="material-symbols-rounded text-xl text-text-secondary">schedule</span>
+                        <div>
+                            <span class="font-medium text-text-primary">Reminder Time</span>
+                            <p class="text-xs text-text-muted">When to send reminder</p>
+                        </div>
+                    </div>
+                    <input type="time" class="input-inline-sm text-sm py-2" value="@_reminderTime.ToString("HH:mm")" @onchange="OnReminderTimeChanged" />
+                </div>
+            }
+            
+            <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-rounded text-xl text-text-secondary">celebration</span>
+                    <div>
+                        <span class="font-medium text-text-primary">Streak Alerts</span>
+                        <p class="text-xs text-text-muted">Celebrate milestones</p>
+                    </div>
+                </div>
+                <ToggleSwitch @bind-Value="_streakAlerts" />
+            </div>
+        </div>
+    </section>
+    
+    @* Security Section *@
+    <section class="card-elevated">
+        <h2 class="text-lg font-semibold text-text-primary mb-4">Security</h2>
+        
+        <div class="space-y-4">
+            <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-rounded text-xl text-text-secondary">pin</span>
+                    <div>
+                        <span class="font-medium text-text-primary">App PIN</span>
+                        <p class="text-xs text-text-muted">@(_hasPIN ? "PIN protection enabled" : "Add extra security")</p>
+                    </div>
+                </div>
+                <button class="btn-pill-secondary px-4 py-2 text-sm" @onclick="ManagePIN">
+                    @(_hasPIN ? "Change" : "Set Up")
+                </button>
+            </div>
+            
+            @if (_hasPIN)
+            {
+                <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                    <div class="flex items-center gap-3">
+                        <span class="material-symbols-rounded text-xl text-text-secondary">timer</span>
+                        <div>
+                            <span class="font-medium text-text-primary">Auto-Lock</span>
+                            <p class="text-xs text-text-muted">When to require PIN</p>
+                        </div>
+                    </div>
+                    <select class="input-inline-sm text-sm py-2" @bind="_lockTimeout" @bind:after="OnLockTimeoutChanged">
+                        <option value="0">Every time</option>
+                        <option value="1">After 1 minute</option>
+                        <option value="5">After 5 minutes</option>
+                        <option value="15">After 15 minutes</option>
+                        <option value="30">After 30 minutes</option>
+                        <option value="-1">Never</option>
+                    </select>
+                </div>
+            }
+            
+            <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-rounded text-xl text-text-secondary">fingerprint</span>
+                    <div>
+                        <span class="font-medium text-text-primary">Biometric Unlock</span>
+                        <p class="text-xs text-text-muted">@(_isBiometricAvailable ? "Use fingerprint or face" : "Not available on this device")</p>
+                    </div>
+                </div>
+                <ToggleSwitch Value="_biometricEnabled" ValueChanged="OnBiometricChanged" Disabled="@(!_hasPIN || !_isBiometricAvailable)" />
+            </div>
+            
+            @if (_hasPIN)
+            {
+                <button class="flex items-center gap-3 w-full p-4 rounded-2xl bg-mood-negative/10 hover:bg-mood-negative/20 transition-colors text-left"
+                        @onclick="RemovePIN">
+                    <span class="material-symbols-rounded text-xl text-mood-negative">delete</span>
+                    <div class="flex-1">
+                        <span class="font-medium text-mood-negative">Remove PIN</span>
+                        <p class="text-xs text-text-muted">Disable PIN protection</p>
+                    </div>
+                </button>
+            }
+            
+            <button class="flex items-center gap-3 w-full p-4 rounded-2xl bg-surface-container hover:bg-surface-elevated-hover transition-colors text-left"
+                    @onclick="OpenChangePasswordModal">
+                <span class="material-symbols-rounded text-xl text-text-secondary">key</span>
+                <div class="flex-1">
+                    <span class="font-medium text-text-primary">Change Password</span>
+                    <p class="text-xs text-text-muted">Update your account password</p>
+                </div>
+                <span class="material-symbols-rounded text-text-muted">chevron_right</span>
+            </button>
+        </div>
+    </section>
+    
+    @* Data & Export Section *@
+    <section class="card-elevated">
+        <h2 class="text-lg font-semibold text-text-primary mb-4">Data & Export</h2>
+        
+        <div class="space-y-4">
+            <a href="/export" class="flex items-center gap-3 w-full p-4 rounded-2xl bg-surface-container hover:bg-surface-elevated-hover transition-colors">
+                <span class="material-symbols-rounded text-xl text-text-secondary">download</span>
+                <div class="flex-1">
+                    <span class="font-medium text-text-primary">Export Data</span>
+                    <p class="text-xs text-text-muted">Download your journal entries</p>
+                </div>
+                <span class="material-symbols-rounded text-text-muted">chevron_right</span>
+            </a>
+            
+            <a href="/backup" class="flex items-center gap-3 w-full p-4 rounded-2xl bg-surface-container hover:bg-surface-elevated-hover transition-colors">
+                <span class="material-symbols-rounded text-xl text-text-secondary">backup</span>
+                <div class="flex-1">
+                    <span class="font-medium text-text-primary">Backup & Sync</span>
+                    <p class="text-xs text-text-muted">Cloud backup options</p>
+                </div>
+                <span class="material-symbols-rounded text-text-muted">chevron_right</span>
+            </a>
+        </div>
+    </section>
+    
+    @* About Section *@
+    <section class="card-elevated">
+        <h2 class="text-lg font-semibold text-text-primary mb-4">About</h2>
+        
+        <div class="space-y-4">
+            <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                <div>
+                    <span class="font-medium text-text-primary">Version</span>
+                    <p class="text-xs text-text-muted">Reflecta for @_platform</p>
+                </div>
+                <span class="text-sm text-text-secondary">@_appVersion</span>
+            </div>
+            
+            <div class="flex flex-wrap gap-2">
+                <a href="/privacy" class="tag-pill">Privacy Policy</a>
+                <a href="/terms" class="tag-pill">Terms of Service</a>
+                <a href="/support" class="tag-pill">Help & Support</a>
+            </div>
+        </div>
+    </section>
+    
+    @* Danger Zone *@
+    <section class="card-elevated border border-mood-negative/30">
+        <h2 class="text-lg font-semibold text-mood-negative mb-4">Danger Zone</h2>
+        
+        <div class="space-y-4">
+            <button class="flex items-center gap-3 w-full p-4 rounded-2xl bg-mood-negative/10 hover:bg-mood-negative/20 transition-colors text-left"
+                    @onclick="ConfirmDeleteAccount">
+                <span class="material-symbols-rounded text-xl text-mood-negative">delete_forever</span>
+                <div class="flex-1">
+                    <span class="font-medium text-mood-negative">Delete Account</span>
+                    <p class="text-xs text-text-muted">Permanently delete your account and all data</p>
+                </div>
+            </button>
+        </div>
+    </section>
+    
+    @* Sign Out *@
+    <button class="btn-pill-secondary w-full justify-center" @onclick="SignOut">
+        <span class="material-symbols-rounded">logout</span>
+        Sign Out
+    </button>
+</div>
+}
+
+@* PIN Setup Modal *@
+<Modal @bind-IsOpen="_showPINModal" Title="@(_hasPIN ? "Change PIN" : "Set Up PIN")">
+    <ChildContent>
+        <div class="space-y-4">
+            @if (_hasPIN)
+            {
+                <SolidInput 
+                    Label="Current PIN"
+                    InputType="password"
+                    Placeholder="Enter current PIN"
+                    @bind-Value="_currentPIN" />
+            }
+            
+            <SolidInput 
+                Label="New PIN"
+                InputType="password"
+                Placeholder="Enter 4-digit PIN"
+                @bind-Value="_newPIN" />
+            
+            <SolidInput 
+                Label="Confirm PIN"
+                InputType="password"
+                Placeholder="Confirm your PIN"
+                @bind-Value="_confirmPIN"
+                ErrorMessage="@(_pinError ?? (_confirmPIN.Length > 0 && _newPIN != _confirmPIN ? "PINs don't match" : null))" />
+        </div>
+    </ChildContent>
+    
+    <FooterContent>
+        <PillButton Text="Cancel" Variant="PillButton.ButtonVariant.Secondary" OnClick="() => _showPINModal = false" />
+        <PillButton Text="Save PIN" Icon="check" OnClick="SavePIN" Disabled="_isSaving" />
+    </FooterContent>
+</Modal>
+
+@* Delete Account Confirmation Modal *@
+<Modal @bind-IsOpen="_showDeleteModal" Title="Delete Account?">
+    <ChildContent>
+        <p class="text-text-secondary">
+            Are you sure you want to delete your account? This will permanently delete all your journal entries, settings, and data. This action cannot be undone.
+        </p>
+    </ChildContent>
+    
+    <FooterContent>
+        <PillButton Text="Cancel" Variant="PillButton.ButtonVariant.Secondary" OnClick="() => _showDeleteModal = false" />
+        <PillButton Text="Delete Account" Variant="PillButton.ButtonVariant.Danger" Icon="delete_forever" OnClick="DeleteAccount" />
+    </FooterContent>
+</Modal>
+
+@* Change Password Modal *@
+<Modal @bind-IsOpen="_showPasswordModal" Title="Change Password">
+    <ChildContent>
+        <div class="space-y-4">
+            @if (!string.IsNullOrEmpty(_passwordMessage))
+            {
+                <div class="p-3 rounded-xl @(_passwordMessageIsError ? "bg-mood-negative/20 text-mood-negative" : "bg-accent-primary/20 text-accent-primary") text-sm">
+                    @_passwordMessage
+                </div>
+            }
+            
+            <SolidInput 
+                Label="Current Password"
+                InputType="password"
+                Placeholder="Enter current password"
+                @bind-Value="_currentPassword" />
+            
+            <SolidInput 
+                Label="New Password"
+                InputType="password"
+                Placeholder="Enter new password (min 6 characters)"
+                @bind-Value="_newPassword" />
+            
+            <SolidInput 
+                Label="Confirm New Password"
+                InputType="password"
+                Placeholder="Confirm new password"
+                @bind-Value="_confirmPassword"
+                ErrorMessage="@(_confirmPassword.Length > 0 && _newPassword != _confirmPassword ? "Passwords don't match" : null)" />
+        </div>
+    </ChildContent>
+    
+    <FooterContent>
+        <PillButton Text="Cancel" Variant="PillButton.ButtonVariant.Secondary" OnClick="ClosePasswordModal" />
+        <PillButton Text="Change Password" Icon="check" OnClick="ChangePassword" Disabled="@_isChangingPassword" />
+    </FooterContent>
+</Modal>
+
+@code {
+    private bool _isLoading = true;
+    private User? _currentUser;
+    private UserSettings? _settings;
+    
+    // Profile editing
+    private string _displayName = "";
+    private string _originalDisplayName = "";
+    private string _userEmail = "";
+    private bool _isEditingProfile = false;
+    private bool _isSavingProfile = false;
+    private string? _profileMessage;
+    private bool _profileMessageIsError = false;
+    
+    // Change password
+    private bool _showPasswordModal = false;
+    private string _currentPassword = "";
+    private string _newPassword = "";
+    private string _confirmPassword = "";
+    private string? _passwordMessage;
+    private bool _passwordMessageIsError = false;
+    private bool _isChangingPassword = false;
+    
+    // Appearance
+    private bool _darkMode = true;
+    private string _fontSize = "medium";
+    
+    private bool _dailyReminder = false;
+    private TimeOnly _reminderTime = new(20, 0);
+    private bool _streakAlerts = true;
+    
+    private bool _hasPIN = false;
+    private bool _biometricEnabled = false;
+    private bool _isBiometricAvailable = false;
+    private int _lockTimeout = 0;
+    private bool _showPINModal = false;
+    private string _currentPIN = "";
+    private string _newPIN = "";
+    private string _confirmPIN = "";
+    private string? _pinError;
+    
+    private string _appVersion = "1.0.0";
+    private string _platform = "Mobile";
+    
+    private bool _showDeleteModal = false;
+    private bool _isSaving = false;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        if (LockService.IsLocked)
+        {
+            NavigationManager.NavigateTo("/pin-lock", replace: true);
+            return;
+        }
+
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        
+        await LoadSettingsAsync();
+        _isLoading = false;
+    }
+    
+    private async Task LoadSettingsAsync()
+    {
+        var userId = AuthService.CurrentUserId!.Value;
+        _currentUser = await AuthService.GetUserByIdAsync(userId);
+        _settings = await SettingsService.GetSettingsAsync(userId);
+        
+        // Check if biometric is available on this device
+        _isBiometricAvailable = await LockService.IsBiometricAvailableAsync();
+        
+        if (_currentUser != null)
+        {
+            _displayName = !string.IsNullOrWhiteSpace(_currentUser.FirstName) 
+                ? $"{_currentUser.FirstName} {_currentUser.LastName}".Trim() 
+                : _currentUser.Username;
+            _originalDisplayName = _displayName;
+            _userEmail = _currentUser.Email;
+        }
+        
+        if (_settings != null)
+        {
+            _darkMode = _settings.Theme == "dark";
+            _dailyReminder = _settings.ReminderEnabled;
+            _reminderTime = _settings.ReminderTime ?? new TimeOnly(20, 0);
+            _hasPIN = _settings.PinEnabled;
+            _biometricEnabled = _settings.BiometricEnabled;
+            _lockTimeout = _settings.LockTimeoutMinutes;
+        }
+    }
+    
+    private async Task SaveTheme()
+    {
+        if (_settings == null) return;
+        var userId = AuthService.CurrentUserId!.Value;
+        var theme = _darkMode ? "dark" : "light";
+        await SettingsService.UpdateThemeAsync(userId, theme);
+        
+        // Apply theme immediately via JS interop
+        await JSRuntime.InvokeVoidAsync("reflectaTheme.setTheme", theme);
+    }
+    
+    private async Task OnDarkModeChanged(bool value)
+    {
+        _darkMode = value;
+        await SaveTheme();
+    }
+    
+    private async Task OnDailyReminderChanged(bool value)
+    {
+        _dailyReminder = value;
+        await SaveReminderSettings();
+    }
+    
+    private async Task OnReminderTimeChanged(ChangeEventArgs e)
+    {
+        if (TimeOnly.TryParse(e.Value?.ToString(), out var time))
+        {
+            _reminderTime = time;
+            await SaveReminderSettings();
+        }
+    }
+    
+    private async Task SaveReminderSettings()
+    {
+        if (_settings == null) return;
+        var userId = AuthService.CurrentUserId!.Value;
+        await SettingsService.UpdateReminderSettingsAsync(userId, _dailyReminder, _dailyReminder ? _reminderTime : null);
+    }
+    
+    private void ManagePIN()
+    {
+        _currentPIN = "";
+        _newPIN = "";
+        _confirmPIN = "";
+        _pinError = null;
+        _showPINModal = true;
+    }
+    
+    private async Task SavePIN()
+    {
+        _pinError = null;
+        
+        if (_newPIN.Length != 4)
+        {
+            _pinError = "PIN must be 4 digits";
+            return;
+        }
+        
+        if (_newPIN != _confirmPIN)
+        {
+            _pinError = "PINs don't match";
+            return;
+        }
+        
+        if (!_newPIN.All(char.IsDigit))
+        {
+            _pinError = "PIN must contain only digits";
+            return;
+        }
+        
+        _isSaving = true;
+        var userId = AuthService.CurrentUserId!.Value;
+        
+        // If user has existing PIN, verify current PIN first
+        if (_hasPIN && !string.IsNullOrEmpty(_currentPIN))
+        {
+            var isValid = await AuthService.VerifyPinAsync(userId, _currentPIN);
+            if (!isValid)
+            {
+                _pinError = "Current PIN is incorrect";
+                _isSaving = false;
+                return;
+            }
+        }
+        
+        var result = await AuthService.SetPinAsync(userId, _newPIN);
+        _isSaving = false;
+        
+        if (result.Success)
+        {
+            _hasPIN = true;
+            _showPINModal = false;
+            await LockService.RefreshSettingsAsync();
+        }
+        else
+        {
+            _pinError = result.Message;
+        }
+    }
+    
+    private async Task OnLockTimeoutChanged()
+    {
+        await LockService.UpdateLockTimeoutAsync(_lockTimeout);
+    }
+    
+    private async Task OnBiometricChanged(bool value)
+    {
+        _biometricEnabled = value;
+        await LockService.UpdateBiometricEnabledAsync(value);
+    }
+    
+    private async Task RemovePIN()
+    {
+        var userId = AuthService.CurrentUserId!.Value;
+        var result = await AuthService.RemovePinAsync(userId);
+        
+        if (result.Success)
+        {
+            _hasPIN = false;
+            _biometricEnabled = false;
+            _lockTimeout = 0;
+            await LockService.RefreshSettingsAsync();
+        }
+    }
+    
+    private async Task SaveProfile()
+    {
+        _profileMessage = null;
+        _isSavingProfile = true;
+        
+        var userId = AuthService.CurrentUserId!.Value;
+        
+        // Split display name into first and last name
+        var nameParts = _displayName.Trim().Split(' ', 2);
+        var firstName = nameParts[0];
+        var lastName = nameParts.Length > 1 ? nameParts[1] : null;
+        
+        var result = await AuthService.UpdateProfileAsync(userId, firstName, lastName, null);
+        
+        _isSavingProfile = false;
+        _profileMessageIsError = !result.Success;
+        _profileMessage = result.Message;
+        
+        if (result.Success)
+        {
+            _originalDisplayName = _displayName;
+            _isEditingProfile = false;
+            
+            // Clear success message after 3 seconds
+            _ = Task.Delay(3000).ContinueWith(_ => 
+            {
+                _profileMessage = null;
+                InvokeAsync(StateHasChanged);
+            });
+        }
+    }
+    
+    private void CancelEditProfile()
+    {
+        _displayName = _originalDisplayName;
+        _isEditingProfile = false;
+        _profileMessage = null;
+    }
+    
+    private void OpenChangePasswordModal()
+    {
+        _currentPassword = "";
+        _newPassword = "";
+        _confirmPassword = "";
+        _passwordMessage = null;
+        _showPasswordModal = true;
+    }
+    
+    private void ClosePasswordModal()
+    {
+        _showPasswordModal = false;
+        _currentPassword = "";
+        _newPassword = "";
+        _confirmPassword = "";
+        _passwordMessage = null;
+    }
+    
+    private async Task ChangePassword()
+    {
+        _passwordMessage = null;
+        
+        if (string.IsNullOrWhiteSpace(_currentPassword))
+        {
+            _passwordMessage = "Current password is required";
+            _passwordMessageIsError = true;
+            return;
+        }
+        
+        if (_newPassword.Length < 6)
+        {
+            _passwordMessage = "New password must be at least 6 characters";
+            _passwordMessageIsError = true;
+            return;
+        }
+        
+        if (_newPassword != _confirmPassword)
+        {
+            _passwordMessage = "Passwords don't match";
+            _passwordMessageIsError = true;
+            return;
+        }
+        
+        _isChangingPassword = true;
+        var userId = AuthService.CurrentUserId!.Value;
+        
+        var result = await AuthService.ChangePasswordAsync(userId, _currentPassword, _newPassword);
+        
+        _isChangingPassword = false;
+        _passwordMessageIsError = !result.Success;
+        _passwordMessage = result.Message;
+        
+        if (result.Success)
+        {
+            // Close modal after success
+            await Task.Delay(1500);
+            ClosePasswordModal();
+        }
+    }
+    
+    private void ConfirmDeleteAccount()
+    {
+        _showDeleteModal = true;
+    }
+    
+    private async Task DeleteAccount()
+    {
+        // Note: Implement account deletion in AuthService if needed
+        // For now, just log out the user
+        _showDeleteModal = false;
+        await SignOut();
+    }
+    
+    private async Task SignOut()
+    {
+        if (AuthStateProvider is ReflectaAuthenticationStateProvider reflectaAuth)
+        {
+            await reflectaAuth.LogoutAsync();
+        }
+        else
+        {
+            await AuthService.LogoutAsync();
+        }
+        
+        NavigationManager.NavigateTo("/login");
+    }
+}

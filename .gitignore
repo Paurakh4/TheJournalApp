@@ -1,20 +1,30 @@
+# Build artifacts
 bin/
 obj/
 /packages/
-riderModule.iml
-/_ReSharper.Caches/
 
-# IDE
+# IDE & Editor
 .idea/
 .vs/
 *.user
 *.suo
+riderModule.iml
+/_ReSharper.Caches/
+.vscode/
 
 # macOS
 .DS_Store
 
-# Node
+# Node.js
 **/node_modules/
+Reflecta/wwwroot/node_modules/
+package-lock.json
 
-# Development configuration (contains sensitive data)
+# Development & environment-specific configuration
 appsettings.Development.json
+appsettings.*.json
+
+# Runtime & temporary files
+*.log
+*.tmp
+.cache/

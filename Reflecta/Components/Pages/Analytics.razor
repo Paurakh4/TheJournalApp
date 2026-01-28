@@ -1,0 +1,538 @@
+@page "/analytics"
+
+@using ApexCharts
+
+@inject IAnalyticsService AnalyticsService
+@inject IAuthService AuthService
+@inject ILockService LockService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Insights - Reflecta</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="flex items-center justify-center h-64">
+        <span class="material-symbols-rounded text-4xl text-accent-primary animate-spin">progress_activity</span>
+    </div>
+}
+else
+{
+    <div class="space-y-6">
+        @* Header *@
+        <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold text-text-primary">Insights</h1>
+                <p class="text-text-secondary">Discover patterns in your journaling</p>
+            </div>
+            
+            @* Time Range Selector *@
+            <div class="flex items-center gap-2 p-1 bg-surface-elevated rounded-pill">
+                @foreach (var range in _timeRanges)
+                {
+                    <button class="@GetTimeRangeClass(range.Key)" @onclick="() => SelectTimeRange(range.Key)">
+                        @range.Key
+                    </button>
+                }
+            </div>
+        </header>
+        
+        @* Overview Stats *@
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard 
+                Label="Total Entries"
+                Value="@_summary.TotalEntries.ToString()"
+                Icon="article"
+                IconBgColor="accent-primary" />
+            
+            <StatCard 
+                Label="Words Written"
+                Value="@FormatNumber(_summary.TotalWords)"
+                Icon="text_fields"
+                IconBgColor="accent-secondary" />
+            
+            <StatCard 
+                Label="Avg Words/Entry"
+                Value="@_avgWordsDisplay"
+                Icon="calculate"
+                IconBgColor="mood-calm" />
+            
+            <StatCard 
+                Label="Active Days"
+                Value="@_summary.DaysActive.ToString()"
+                Icon="calendar_month"
+                IconBgColor="mood-energetic" />
+        </section>
+        
+        @* Mood Distribution *@
+        <section class="card-elevated">
+            <h2 class="text-lg font-semibold text-text-primary mb-6">Mood Distribution</h2>
+            
+            <div class="grid md:grid-cols-2 gap-8">
+                @* Mood Breakdown Chart with ApexCharts *@
+                <div>
+                    @if (_moodChartData.Any())
+                    {
+                        <ApexChart TItem="MoodChartItem"
+                                   Options="_moodChartOptions"
+                                   Height="280">
+                            <ApexPointSeries TItem="MoodChartItem"
+                                             Items="_moodChartData"
+                                             SeriesType="SeriesType.Donut"
+                                             XValue="@(e => e.Name)"
+                                             YValue="@(e => (decimal)e.Count)" />
+                        </ApexChart>
+                    }
+                    else
+                    {
+                        <div class="h-[280px] flex items-center justify-center text-text-muted">
+                            <p>No mood data available</p>
+                        </div>
+                    }
+                </div>
+                
+                @* Mood Summary *@
+                <div class="space-y-4">
+                    @if (_summary.MostFrequentMood != null)
+                    {
+                        <div class="card-container">
+                            <div class="text-center">
+                                <span class="text-6xl">@_summary.MostFrequentMood.Emoji</span>
+                                <h3 class="text-lg font-semibold text-text-primary mt-2">Most Frequent Mood</h3>
+                                <p class="text-sm text-text-secondary">@_summary.MostFrequentMood.Name</p>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="card-container text-center py-8">
+                            <p class="text-text-muted">No dominant mood yet</p>
+                        </div>
+                    }
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="card-container text-center">
+                            <span class="text-3xl">@_positiveDays</span>
+                            <p class="text-xs text-text-muted mt-1">Positive Days</p>
+                        </div>
+                        <div class="card-container text-center">
+                            <span class="text-3xl">@_neutralDays</span>
+                            <p class="text-xs text-text-muted mt-1">Neutral Days</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        @* Weekly Activity Chart with ApexCharts *@
+        <section class="card-elevated">
+            <h2 class="text-lg font-semibold text-text-primary mb-6">Weekly Activity</h2>
+            
+            @if (_weeklyChartData.Any())
+            {
+                <ApexChart TItem="WeeklyChartItem"
+                           Options="_weeklyChartOptions"
+                           Height="200">
+                    <ApexPointSeries TItem="WeeklyChartItem"
+                                     Items="_weeklyChartData"
+                                     Name="Entries"
+                                     SeriesType="SeriesType.Bar"
+                                     XValue="@(e => e.DayName)"
+                                     YValue="@(e => (decimal)e.Count)" />
+                </ApexChart>
+            }
+            else
+            {
+                <div class="h-[200px] flex items-center justify-center text-text-muted">
+                    <p>No activity data available</p>
+                </div>
+            }
+            
+            <div class="flex items-center justify-center gap-6 mt-4 text-sm text-text-secondary">
+                <span>Total: @_summary.WeeklyActivity.Sum(w => w.EntryCount) entries</span>
+                @if (_bestDay != null)
+                {
+                    <span>•</span>
+                    <span>Best day: @_bestDay</span>
+                }
+            </div>
+        </section>
+        
+        @* Top Tags & Writing Patterns *@
+        <div class="grid md:grid-cols-2 gap-6">
+            @* Top Tags *@
+            <section class="card-elevated">
+                <h2 class="text-lg font-semibold text-text-primary mb-4">Top Tags</h2>
+                
+                @if (_summary.TopTags.Any())
+                {
+                    <div class="space-y-3">
+                        @{ var rank = 1; }
+                        @foreach (var tagData in _summary.TopTags.Take(5))
+                        {
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-3">
+                                    <span class="w-8 h-8 rounded-xl bg-accent-primary/20 flex items-center justify-center text-sm font-bold text-accent-primary">
+                                        @rank
+                                    </span>
+                                    <span class="font-medium text-text-primary">@tagData.Tag.Name</span>
+                                </div>
+                                <span class="text-sm text-text-secondary">@tagData.Count entries</span>
+                            </div>
+                            rank++;
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p class="text-text-muted text-center py-4">No tags used yet</p>
+                }
+            </section>
+            
+            @* Writing Patterns *@
+            <section class="card-elevated">
+                <h2 class="text-lg font-semibold text-text-primary mb-4">Writing Patterns</h2>
+                
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-rounded text-2xl text-mood-energetic">local_fire_department</span>
+                            <div>
+                                <span class="font-medium text-text-primary">Current Streak</span>
+                                <p class="text-xs text-text-muted">Consecutive days</p>
+                            </div>
+                        </div>
+                        <span class="text-lg font-bold text-text-primary">@_summary.CurrentStreak days</span>
+                    </div>
+                    
+                    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-rounded text-2xl text-accent-primary">emoji_events</span>
+                            <div>
+                                <span class="font-medium text-text-primary">Longest Streak</span>
+                                <p class="text-xs text-text-muted">Personal record</p>
+                            </div>
+                        </div>
+                        <span class="text-lg font-bold text-text-primary">@_summary.LongestStreak days</span>
+                    </div>
+                    
+                    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-rounded text-2xl text-mood-calm">edit_note</span>
+                            <div>
+                                <span class="font-medium text-text-primary">Avg Words/Entry</span>
+                                <p class="text-xs text-text-muted">Writing consistency</p>
+                            </div>
+                        </div>
+                        <span class="text-lg font-bold text-text-primary">@((int)_summary.AverageWordsPerEntry) words</span>
+                    </div>
+                    
+                    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                        <div class="flex items-center gap-3">
+                            <span class="material-symbols-rounded text-2xl text-red-400">event_busy</span>
+                            <div>
+                                <span class="font-medium text-text-primary">Missed Days</span>
+                                <p class="text-xs text-text-muted">In selected period</p>
+                            </div>
+                        </div>
+                        <span class="text-lg font-bold text-text-primary">@_summary.MissedDays days</span>
+                    </div>
+                </div>
+                
+                @if (_summary.RecentMissedDates.Any())
+                {
+                    <div class="mt-4 p-3 rounded-xl bg-surface-container/50">
+                        <p class="text-xs text-text-muted mb-2">Recent missed dates:</p>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach (var date in _summary.RecentMissedDates.Take(5))
+                            {
+                                <span class="px-2 py-1 text-xs rounded-lg bg-red-500/10 text-red-400">
+                                    @date.ToString("MMM d")
+                                </span>
+                            }
+                        </div>
+                    </div>
+                }
+            </section>
+        </div>
+        
+        @* Tag Breakdown by Category *@
+        <section class="card-elevated">
+            <h2 class="text-lg font-semibold text-text-primary mb-6">Tag Breakdown by Category</h2>
+            
+            <div class="grid md:grid-cols-2 gap-8">
+                @* Pie Chart *@
+                <div>
+                    @if (_tagBreakdownChartData.Any())
+                    {
+                        <ApexChart TItem="TagCategoryChartItem"
+                                   Options="_tagBreakdownChartOptions"
+                                   Height="280">
+                            <ApexPointSeries TItem="TagCategoryChartItem"
+                                             Items="_tagBreakdownChartData"
+                                             SeriesType="SeriesType.Pie"
+                                             XValue="@(e => e.Category)"
+                                             YValue="@(e => (decimal)e.EntryCount)" />
+                        </ApexChart>
+                    }
+                    else
+                    {
+                        <div class="h-[280px] flex items-center justify-center text-text-muted">
+                            <p>No tag data available</p>
+                        </div>
+                    }
+                </div>
+                
+                @* Category List *@
+                <div class="space-y-3">
+                    @if (_summary.TagBreakdown.Any())
+                    {
+                        @foreach (var category in _summary.TagBreakdown)
+                        {
+                            <div class="flex items-center justify-between p-3 rounded-xl bg-surface-container">
+                                <div class="flex items-center gap-3">
+                                    <span class="w-3 h-3 rounded-full" style="background-color: @GetCategoryColor(category.Category)"></span>
+                                    <span class="font-medium text-text-primary">@category.Category</span>
+                                </div>
+                                <div class="text-right">
+                                    <span class="text-sm font-semibold text-text-primary">@category.Percentage%</span>
+                                    <span class="text-xs text-text-muted ml-1">(@category.EntryCount entries)</span>
+                                </div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p class="text-text-muted text-center py-4">Add tags to your entries to see breakdown</p>
+                    }
+                </div>
+            </div>
+        </section>
+        
+        @* Word Count Trend with ApexCharts *@
+        <section class="card-elevated">
+            <h2 class="text-lg font-semibold text-text-primary mb-6">Word Count Trend</h2>
+            
+            @if (_wordCountChartData.Any())
+            {
+                <ApexChart TItem="WordCountChartItem"
+                           Options="_wordCountChartOptions"
+                           Height="200">
+                    <ApexPointSeries TItem="WordCountChartItem"
+                                     Items="_wordCountChartData"
+                                     Name="Words"
+                                     SeriesType="SeriesType.Area"
+                                     XValue="@(e => e.Date.ToString("MMM d"))"
+                                     YValue="@(e => (decimal)e.WordCount)" />
+                </ApexChart>
+            }
+            else
+            {
+                <div class="h-[200px] flex items-center justify-center text-text-muted">
+                    <p>No word count data available</p>
+                </div>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    private bool _isLoading = true;
+    private Dictionary<string, int> _timeRanges = new()
+    {
+        { "7 Days", 7 },
+        { "30 Days", 30 },
+        { "90 Days", 90 },
+        { "Year", 365 }
+    };
+    private string _selectedTimeRange = "30 Days";
+    private int _daysBack = 30;
+    
+    private AnalyticsSummary _summary = new();
+    private string _avgWordsDisplay = "0";
+    private int _positiveDays = 0;
+    private int _neutralDays = 0;
+    private string? _bestDay;
+    
+    // Chart data
+    private List<MoodChartItem> _moodChartData = new();
+    private List<WeeklyChartItem> _weeklyChartData = new();
+    private List<WordCountChartItem> _wordCountChartData = new();
+    private List<TagCategoryChartItem> _tagBreakdownChartData = new();
+    
+    // Chart options
+    private ApexChartOptions<MoodChartItem> _moodChartOptions = new();
+    private ApexChartOptions<WeeklyChartItem> _weeklyChartOptions = new();
+    private ApexChartOptions<WordCountChartItem> _wordCountChartOptions = new();
+    private ApexChartOptions<TagCategoryChartItem> _tagBreakdownChartOptions = new();
+    
+    // Category colors for tag breakdown
+    private readonly Dictionary<string, string> _categoryColors = new()
+    {
+        { "Personal", "#a855f7" },
+        { "Health", "#22c55e" },
+        { "Work", "#3b82f6" },
+        { "Travel", "#f59e0b" },
+        { "Relationships", "#ec4899" },
+        { "Lifestyle", "#06b6d4" },
+        { "Uncategorized", "#6b7280" }
+    };
+    
+    protected override async Task OnInitializedAsync()
+    {
+        if (LockService.IsLocked)
+        {
+            NavigationManager.NavigateTo("/pin-lock", replace: true);
+            return;
+        }
+
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        
+        InitializeChartOptions();
+        await LoadAnalyticsAsync();
+        _isLoading = false;
+    }
+    
+    private void InitializeChartOptions()
+    {
+        _moodChartOptions = new ApexChartOptions<MoodChartItem>
+        {
+            Chart = new Chart { Background = "transparent" },
+            Colors = new List<string> { "#22c55e", "#eab308", "#ef4444", "#06b6d4", "#a855f7" },
+            Legend = new Legend { Position = LegendPosition.Bottom, Labels = new LegendLabels { Colors = new Color("#9ca3af") } },
+            DataLabels = new DataLabels { Enabled = false }
+        };
+        
+        _weeklyChartOptions = new ApexChartOptions<WeeklyChartItem>
+        {
+            Chart = new Chart { Background = "transparent", Toolbar = new Toolbar { Show = false } },
+            Colors = new List<string> { "#B8F4B8" },
+            PlotOptions = new PlotOptions
+            {
+                Bar = new PlotOptionsBar { BorderRadius = 8, ColumnWidth = "60%" }
+            },
+            Xaxis = new XAxis { Labels = new XAxisLabels { Style = new AxisLabelStyle { Colors = new Color("#9ca3af") } } },
+            Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Style = new AxisLabelStyle { Colors = new Color("#9ca3af") } } } },
+            Grid = new Grid { BorderColor = "#374151" }
+        };
+        
+        _wordCountChartOptions = new ApexChartOptions<WordCountChartItem>
+        {
+            Chart = new Chart { Background = "transparent", Toolbar = new Toolbar { Show = false } },
+            Colors = new List<string> { "#06b6d4" },
+            Stroke = new Stroke { Curve = Curve.Smooth, Width = 2 },
+            Fill = new Fill { Type = FillType.Gradient, Gradient = new FillGradient { ShadeIntensity = 1, OpacityFrom = 0.4, OpacityTo = 0.1 } },
+            Xaxis = new XAxis { Labels = new XAxisLabels { Style = new AxisLabelStyle { Colors = new Color("#9ca3af") } } },
+            Yaxis = new List<YAxis> { new YAxis { Labels = new YAxisLabels { Style = new AxisLabelStyle { Colors = new Color("#9ca3af") } } } },
+            Grid = new Grid { BorderColor = "#374151" },
+            DataLabels = new DataLabels { Enabled = false }
+        };
+        
+        _tagBreakdownChartOptions = new ApexChartOptions<TagCategoryChartItem>
+        {
+            Chart = new Chart { Background = "transparent" },
+            Colors = new List<string> { "#a855f7", "#22c55e", "#3b82f6", "#f59e0b", "#ec4899", "#06b6d4", "#6b7280" },
+            Legend = new Legend { Position = LegendPosition.Bottom, Labels = new LegendLabels { Colors = new Color("#9ca3af") } },
+            DataLabels = new DataLabels { Enabled = false }
+        };
+    }
+    
+    private async Task LoadAnalyticsAsync()
+    {
+        var userId = AuthService.CurrentUserId!.Value;
+        
+        // Calculate date range based on selected time range
+        var endDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        var startDate = endDate.AddDays(-_daysBack);
+        
+        _summary = await AnalyticsService.GetAnalyticsSummaryAsync(userId, startDate, endDate);
+        _avgWordsDisplay = ((int)_summary.AverageWordsPerEntry).ToString();
+        
+        // Process mood distribution
+        _moodChartData = _summary.MoodDistribution
+            .Select(m => new MoodChartItem { Name = $"{m.Mood.Emoji} {m.Mood.Name}", Count = m.Count })
+            .ToList();
+        
+        _positiveDays = _summary.MoodDistribution
+            .Where(m => m.Mood.Category == MoodCategory.Positive)
+            .Sum(m => m.Count);
+        _neutralDays = _summary.MoodDistribution
+            .Where(m => m.Mood.Category == MoodCategory.Neutral)
+            .Sum(m => m.Count);
+        
+        // Process weekly activity
+        _weeklyChartData = _summary.WeeklyActivity
+            .Select(w => new WeeklyChartItem { DayName = w.DayName, Count = w.EntryCount })
+            .ToList();
+        
+        var bestActivity = _summary.WeeklyActivity.OrderByDescending(w => w.EntryCount).FirstOrDefault();
+        _bestDay = bestActivity?.DayOfWeek.ToString();
+        
+        // Load word count trend
+        var wordCountTrend = await AnalyticsService.GetWordCountTrendAsync(userId, _daysBack);
+        _wordCountChartData = wordCountTrend
+            .Select(w => new WordCountChartItem { Date = w.Date.ToDateTime(TimeOnly.MinValue), WordCount = w.WordCount })
+            .ToList();
+        
+        // Process tag breakdown by category
+        _tagBreakdownChartData = _summary.TagBreakdown
+            .Select(t => new TagCategoryChartItem { Category = t.Category, EntryCount = t.EntryCount })
+            .ToList();
+    }
+    
+    private async Task SelectTimeRange(string range)
+    {
+        _selectedTimeRange = range;
+        _daysBack = _timeRanges[range];
+        _isLoading = true;
+        StateHasChanged();
+        
+        await LoadAnalyticsAsync();
+        _isLoading = false;
+    }
+    
+    private string GetTimeRangeClass(string range)
+    {
+        return range == _selectedTimeRange
+            ? "px-4 py-2 rounded-pill bg-accent-primary text-text-inverse text-sm font-medium transition-all"
+            : "px-4 py-2 rounded-pill text-text-secondary text-sm font-medium hover:text-text-primary transition-all";
+    }
+    
+    private string FormatNumber(int number)
+    {
+        return number >= 1000 ? $"{number / 1000.0:F1}k" : number.ToString();
+    }
+    
+    // Chart item classes
+    private class MoodChartItem
+    {
+        public string Name { get; set; } = "";
+        public int Count { get; set; }
+    }
+    
+    private class WeeklyChartItem
+    {
+        public string DayName { get; set; } = "";
+        public int Count { get; set; }
+    }
+    
+    private class WordCountChartItem
+    {
+        public DateTime Date { get; set; }
+        public int WordCount { get; set; }
+    }
+    
+    private class TagCategoryChartItem
+    {
+        public string Category { get; set; } = "";
+        public int EntryCount { get; set; }
+    }
+    
+    private string GetCategoryColor(string category)
+    {
+        return _categoryColors.TryGetValue(category, out var color) ? color : "#6b7280";
+    }
+}

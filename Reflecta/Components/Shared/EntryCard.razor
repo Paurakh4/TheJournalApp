@@ -1,0 +1,140 @@
+@* EntryCard.razor - Journal Entry Card Component *@
+
+@using Reflecta.Models
+@using Markdig
+@using System.Text.RegularExpressions
+
+<article class="entry-card @AdditionalClasses" @onclick="HandleClick">
+    <header class="entry-card-header">
+        <div class="flex items-center gap-3">
+            @if (Mood != null)
+            {
+                <span class="text-2xl" title="@Mood.Name">@Mood.Emoji</span>
+            }
+            <div class="flex flex-col">
+                <span class="entry-card-date">@Date.ToString("MMM dd, yyyy")</span>
+                <span class="text-xs text-text-muted">@Date.ToString("h:mm tt")</span>
+                @if (IsUpdated)
+                {
+                    <span class="text-xs text-text-muted italic">
+                        Updated @UpdatedAt?.ToString("MMM dd, yyyy") at @UpdatedAt?.ToString("h:mm tt")
+                    </span>
+                }
+            </div>
+        </div>
+        
+        @if (WordCount > 0)
+        {
+            <span class="text-xs text-text-muted bg-surface-elevated-hover px-2 py-1 rounded-pill">
+                @WordCount words
+            </span>
+        }
+    </header>
+    
+    @if (!string.IsNullOrEmpty(Title))
+    {
+        <h3 class="entry-card-title">@Title</h3>
+    }
+    
+    @if (!string.IsNullOrEmpty(_renderedPreview))
+    {
+        <p class="entry-card-preview">@((MarkupString)_renderedPreview)</p>
+    }
+    
+    @if (Tags.Any())
+    {
+        <footer class="flex flex-wrap gap-1.5 mt-2">
+            @foreach (var tag in Tags.Take(3))
+            {
+                <span class="tag-pill text-[10px] px-2 py-1">@tag.Name</span>
+            }
+            @if (Tags.Count > 3)
+            {
+                <span class="text-xs text-text-muted">+@(Tags.Count - 3) more</span>
+            }
+        </footer>
+    }
+</article>
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+    [Parameter] public DateTime Date { get; set; } = DateTime.Now;
+    [Parameter] public DateTime? UpdatedAt { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Preview { get; set; }
+    [Parameter] public Mood? Mood { get; set; }
+    [Parameter] public List<Tag> Tags { get; set; } = new();
+    [Parameter] public int WordCount { get; set; } = 0;
+    [Parameter] public EventCallback<Guid?> OnClick { get; set; }
+    [Parameter] public string? AdditionalClasses { get; set; }
+
+    private string _renderedPreview = "";
+    
+    // Check if the entry was updated (more than 1 minute difference between created and updated)
+    private bool IsUpdated => UpdatedAt.HasValue && (UpdatedAt.Value - Date).TotalMinutes > 1;
+
+    private static readonly MarkdownPipeline _pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .Build();
+
+    protected override void OnParametersSet()
+    {
+        _renderedPreview = RenderMarkdownPreview(Preview);
+    }
+
+    private string RenderMarkdownPreview(string? content)
+    {
+        if (string.IsNullOrEmpty(content))
+            return "";
+        
+        // Truncate raw content first to avoid processing huge markdown
+        var truncatedContent = content.Length > 300 ? content.Substring(0, 300) : content;
+        
+        // Convert markdown to HTML
+        var html = Markdown.ToHtml(truncatedContent, _pipeline);
+        
+        // Clean up the HTML for preview display
+        // Remove block-level tags but keep inline formatting
+        html = Regex.Replace(html, @"<(h[1-6])[^>]*>", "", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"</(h[1-6])>", " ", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<br\s*/?>", " ", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"</p>\s*<p>", " ", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<p[^>]*>", "", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"</p>", " ", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<ul[^>]*>|</ul>|<ol[^>]*>|</ol>", "", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<li[^>]*>", "", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"</li>", " ", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<blockquote[^>]*>|</blockquote>", "", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<pre[^>]*>|</pre>", "", RegexOptions.IgnoreCase);
+        html = Regex.Replace(html, @"<div[^>]*>|</div>", "", RegexOptions.IgnoreCase);
+        
+        // Clean up extra whitespace
+        html = Regex.Replace(html, @"\s+", " ").Trim();
+        
+        // Extract plain text length for truncation check
+        var plainText = Regex.Replace(html, @"<[^>]+>", "", RegexOptions.IgnoreCase);
+        plainText = System.Net.WebUtility.HtmlDecode(plainText);
+        
+        // If still too long after processing, truncate more aggressively
+        if (plainText.Length > 150)
+        {
+            // Find a good truncation point
+            var cutoff = 150;
+            // Try to find a space to break at
+            var spaceIndex = plainText.LastIndexOf(' ', Math.Min(cutoff + 20, plainText.Length - 1));
+            if (spaceIndex > 100)
+                cutoff = spaceIndex;
+            
+            // We need to truncate the HTML carefully
+            // For simplicity, strip all tags and return plain truncated text
+            return System.Net.WebUtility.HtmlEncode(plainText.Substring(0, cutoff).Trim()) + "...";
+        }
+        
+        return html;
+    }
+
+    private async Task HandleClick()
+    {
+        await OnClick.InvokeAsync(Id);
+    }
+}

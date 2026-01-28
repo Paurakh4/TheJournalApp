@@ -1,0 +1,442 @@
+@page "/pin-setup"
+@layout AuthLayout
+
+@using Reflecta.Services.Interfaces
+@using Reflecta.Auth
+@using Microsoft.AspNetCore.Components.Web
+
+@inject IAuthService AuthService
+@inject ILockService LockService
+@inject ReflectaAuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Set Up PIN - Reflecta</PageTitle>
+
+<div class="min-h-screen flex flex-col items-center justify-center p-6"
+     @onkeydown="HandleKeyDown" 
+     @onkeydown:preventDefault="@_preventKeyDefault"
+     tabindex="0"
+     @ref="_containerRef">
+    
+    <div class="w-full max-w-sm mx-auto animate-fade-in">
+        @* Header *@
+        <header class="text-center mb-12">
+            <div class="w-20 h-20 mx-auto mb-6 rounded-2xl bg-accent-primary/20 flex items-center justify-center shadow-lg">
+                <span class="material-symbols-rounded text-4xl text-accent-primary">lock</span>
+            </div>
+            <h1 class="text-3xl font-bold text-text-primary mb-3">
+                @(_isConfirming ? "Confirm your PIN" : "Create a PIN")
+            </h1>
+            <p class="text-text-secondary text-lg">
+                @(_isConfirming ? "Enter your PIN again to confirm" : "Set a 4-digit PIN to secure your journal")
+            </p>
+        </header>
+        
+        @* PIN Dots Display *@
+        <div class="flex justify-center gap-5 mb-10">
+            @for (int i = 0; i < 4; i++)
+            {
+                var index = i;
+                var currentPin = _isConfirming ? _confirmPin : _pin;
+                <div class="w-5 h-5 rounded-full transition-all duration-200 @(index < currentPin.Length ? "bg-accent-primary scale-125 shadow-md shadow-accent-primary/30" : "bg-surface-elevated border-2 border-border-subtle")"></div>
+            }
+        </div>
+        
+        @* Error Message *@
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="bg-mood-negative/20 text-mood-negative px-5 py-4 rounded-2xl text-sm flex items-center justify-center gap-3 mb-8 animate-shake">
+                <span class="material-symbols-rounded text-xl">error</span>
+                <span>@_errorMessage</span>
+            </div>
+        }
+        
+        @* Success Message *@
+        @if (!string.IsNullOrEmpty(_successMessage))
+        {
+            <div class="bg-mood-positive/20 text-mood-positive px-5 py-4 rounded-2xl text-sm flex items-center justify-center gap-3 mb-8 animate-fade-in">
+                <span class="material-symbols-rounded text-xl">check_circle</span>
+                <span>@_successMessage</span>
+            </div>
+        }
+        
+        @* Number Pad *@
+        <div class="flex flex-col items-center gap-4 mb-10">
+            @* Row 1: 1, 2, 3 *@
+            <div class="flex justify-center gap-4">
+                @for (int i = 1; i <= 3; i++)
+                {
+                    var digit = i.ToString();
+                    <button type="button" 
+                            class="btn-numpad" 
+                            @onclick="() => AddDigit(digit)"
+                            disabled="@_isSaving">
+                        @digit
+                    </button>
+                }
+            </div>
+            
+            @* Row 2: 4, 5, 6 *@
+            <div class="flex justify-center gap-4">
+                @for (int i = 4; i <= 6; i++)
+                {
+                    var digit = i.ToString();
+                    <button type="button" 
+                            class="btn-numpad" 
+                            @onclick="() => AddDigit(digit)"
+                            disabled="@_isSaving">
+                        @digit
+                    </button>
+                }
+            </div>
+            
+            @* Row 3: 7, 8, 9 *@
+            <div class="flex justify-center gap-4">
+                @for (int i = 7; i <= 9; i++)
+                {
+                    var digit = i.ToString();
+                    <button type="button" 
+                            class="btn-numpad" 
+                            @onclick="() => AddDigit(digit)"
+                            disabled="@_isSaving">
+                        @digit
+                    </button>
+                }
+            </div>
+            
+            @* Row 4: Back, 0, Backspace *@
+            <div class="flex justify-center gap-4">
+                @* Reset/Back button (only during confirmation) *@
+                @if (_isConfirming)
+                {
+                    <button type="button" 
+                            class="btn-numpad-icon"
+                            @onclick="ResetToFirstEntry"
+                            disabled="@_isSaving"
+                            title="Start over">
+                        <span class="material-symbols-rounded text-2xl">arrow_back</span>
+                    </button>
+                }
+                else
+                {
+                    <div class="w-[72px] h-[72px]"></div>
+                }
+                
+                <button type="button" 
+                        class="btn-numpad"
+                        @onclick='() => AddDigit("0")'
+                        disabled="@_isSaving">
+                    0
+                </button>
+                
+                @* Backspace *@
+                <button type="button" 
+                        class="btn-numpad-icon"
+                        @onclick="RemoveDigit"
+                        disabled="@_isSaving || (_isConfirming ? _confirmPin.Length == 0 : _pin.Length == 0)"
+                        title="Delete">
+                    <span class="material-symbols-rounded text-2xl">backspace</span>
+                </button>
+            </div>
+        </div>
+        
+        @* Loading Indicator *@
+        @if (_isSaving)
+        {
+            <div class="flex justify-center mb-8">
+                <span class="material-symbols-rounded text-4xl text-accent-primary animate-spin">progress_activity</span>
+            </div>
+        }
+        
+        @* Keyboard hint *@
+        <p class="text-center text-xs text-text-muted mb-6">
+            You can also use your keyboard to enter the PIN
+        </p>
+        
+        @* Info about PIN requirement *@
+        <div class="bg-surface-elevated/50 px-4 py-3 rounded-xl text-center">
+            <p class="text-sm text-text-secondary">
+                <span class="material-symbols-rounded text-base align-middle mr-1">info</span>
+                A PIN is required to protect your journal entries
+            </p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .btn-numpad {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background-color: var(--surface-elevated);
+        color: var(--text-primary);
+        font-size: 1.5rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn-numpad:hover:not(:disabled) {
+        background-color: var(--surface-elevated-hover);
+        transform: scale(1.08);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .btn-numpad:active:not(:disabled) {
+        transform: scale(0.95);
+    }
+    
+    .btn-numpad:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .btn-numpad-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background-color: transparent;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+        border: none;
+        cursor: pointer;
+    }
+    
+    .btn-numpad-icon:hover:not(:disabled) {
+        background-color: var(--surface-elevated);
+        color: var(--accent-primary);
+        transform: scale(1.08);
+    }
+    
+    .btn-numpad-icon:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+    
+    @@keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        20%, 60% { transform: translateX(-6px); }
+        40%, 80% { transform: translateX(6px); }
+    }
+    
+    .animate-shake {
+        animation: shake 0.4s ease-in-out;
+    }
+</style>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public bool Required { get; set; }
+    
+    private string _pin = "";
+    private string _confirmPin = "";
+    private bool _isConfirming;
+    private bool _isSaving;
+    private bool _preventKeyDefault;
+    private string? _errorMessage;
+    private string? _successMessage;
+    private const int MinPinLength = 4;
+    private const int MaxPinLength = 4;
+    
+    private ElementReference _containerRef;
+    
+    protected override void OnInitialized()
+    {
+        // PIN setup is now always required - no skipping allowed
+        
+        if (LockService.IsLocked)
+        {
+            NavigationManager.NavigateTo("/pin-lock", replace: true);
+            return;
+        }
+        
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login", replace: true);
+        }
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Focus the container for keyboard input
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("eval", "document.querySelector('[tabindex=\"0\"]')?.focus()");
+            }
+            catch
+            {
+                // Ignore if JS interop fails
+            }
+        }
+    }
+    
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (_isSaving)
+            return;
+        
+        // Handle numeric keys (both number row and numpad)
+        if (e.Key.Length == 1 && char.IsDigit(e.Key[0]))
+        {
+            _preventKeyDefault = true;
+            AddDigit(e.Key);
+        }
+        // Handle backspace
+        else if (e.Key == "Backspace")
+        {
+            _preventKeyDefault = true;
+            RemoveDigit();
+        }
+        // Handle escape to go back during confirmation
+        else if (e.Key == "Escape" && _isConfirming)
+        {
+            _preventKeyDefault = true;
+            ResetToFirstEntry();
+        }
+        else
+        {
+            _preventKeyDefault = false;
+        }
+    }
+    
+    private void AddDigit(string digit)
+    {
+        if (_isSaving)
+            return;
+            
+        _errorMessage = null;
+        
+        if (_isConfirming)
+        {
+            if (_confirmPin.Length < MaxPinLength)
+            {
+                _confirmPin += digit;
+                
+                // Auto-verify when confirm PIN matches first PIN length
+                if (_confirmPin.Length == MaxPinLength)
+                {
+                    _ = VerifyAndSave();
+                }
+            }
+        }
+        else
+        {
+            if (_pin.Length < MaxPinLength)
+            {
+                _pin += digit;
+                
+                // Proceed to confirm when 4 digits entered
+                if (_pin.Length >= MinPinLength)
+                {
+                    _isConfirming = true;
+                }
+            }
+        }
+        
+        StateHasChanged();
+    }
+    
+    private void RemoveDigit()
+    {
+        if (_isSaving)
+            return;
+            
+        _errorMessage = null;
+        
+        if (_isConfirming)
+        {
+            if (_confirmPin.Length > 0)
+            {
+                _confirmPin = _confirmPin[..^1];
+            }
+        }
+        else
+        {
+            if (_pin.Length > 0)
+            {
+                _pin = _pin[..^1];
+            }
+        }
+        
+        StateHasChanged();
+    }
+    
+    private void ResetToFirstEntry()
+    {
+        _isConfirming = false;
+        _confirmPin = "";
+        _pin = "";
+        _errorMessage = null;
+        StateHasChanged();
+    }
+    
+    private async Task VerifyAndSave()
+    {
+        if (_pin != _confirmPin)
+        {
+            _errorMessage = "PINs don't match. Try again.";
+            _confirmPin = "";
+            StateHasChanged();
+            return;
+        }
+        
+        _isSaving = true;
+        _errorMessage = null;
+        StateHasChanged();
+        
+        try
+        {
+            var userId = AuthService.CurrentUserId!.Value;
+            var result = await AuthService.SetPinAsync(userId, _pin);
+            
+            if (result.Success)
+            {
+                _successMessage = "PIN set successfully!";
+                StateHasChanged();
+                
+                // Initialize lock service with new settings
+                await LockService.RefreshSettingsAsync();
+                
+                // Clear the fresh login flag since user completed setup
+                LockService.ClearFreshLoginFlag();
+                
+                // Small delay to show success message
+                await Task.Delay(800);
+                
+                // Navigate to home
+                NavigationManager.NavigateTo("/", replace: true);
+            }
+            else
+            {
+                _errorMessage = result.Message;
+                _pin = "";
+                _confirmPin = "";
+                _isConfirming = false;
+            }
+        }
+        catch
+        {
+            _errorMessage = "Failed to set PIN. Please try again.";
+            _pin = "";
+            _confirmPin = "";
+            _isConfirming = false;
+        }
+        finally
+        {
+            _isSaving = false;
+            StateHasChanged();
+        }
+    }
+}

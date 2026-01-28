@@ -1,0 +1,434 @@
+@page "/entry/new"
+@page "/entry/{EntryId:guid}/edit"
+
+@inject IJournalService JournalService
+@inject IMoodService MoodService
+@inject ITagService TagService
+@inject IAuthService AuthService
+@inject ILockService LockService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<PageTitle>@(IsEditing ? "Edit Entry" : "New Entry") - Reflecta</PageTitle>
+
+<div class="max-w-5xl mx-auto space-y-6">
+    @if (_isLoading)
+    {
+        <div class="flex items-center justify-center h-64">
+            <span class="material-symbols-rounded text-4xl text-accent-primary animate-spin">progress_activity</span>
+        </div>
+    }
+    else
+    {
+        @* Header *@
+        <header class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <a href="@(IsEditing ? $"/entry/{EntryId}" : "/")" class="btn-pill-ghost p-2">
+                    <span class="material-symbols-rounded">arrow_back</span>
+                </a>
+                <div>
+                    <h1 class="text-2xl font-bold text-text-primary">
+                        @(IsEditing ? "Edit Entry" : "New Entry")
+                    </h1>
+                    <p class="text-sm text-text-muted">@DateTime.Now.ToString("MMMM d, yyyy • h:mm tt")</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2">
+                @if (_hasUnsavedChanges)
+                {
+                    <span class="text-xs text-mood-neutral px-3 py-1 bg-mood-neutral/20 rounded-pill">
+                        Unsaved changes
+                    </span>
+                }
+                <PillButton 
+                    Text="@(_isSaving ? "Saving..." : IsEditing ? "Update" : "Save")"
+                    Icon="save"
+                    Disabled="_isSaving"
+                    OnClick="SaveEntry" />
+            </div>
+        </header>
+        
+        @* Error Message *@
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="bg-mood-negative/20 text-mood-negative px-4 py-3 rounded-2xl text-sm flex items-center gap-2">
+                <span class="material-symbols-rounded text-lg">error</span>
+                @_errorMessage
+            </div>
+        }
+        
+        @* Editor Form *@
+        <form class="space-y-6" @onsubmit="SaveEntry" @onsubmit:preventDefault>
+            @* Title *@
+            <SolidInput 
+                Placeholder="Give your entry a title..."
+                @bind-Value="_title"
+                AdditionalClasses="text-xl font-semibold" />
+            
+            @* Mood Selection *@
+            <div class="card-elevated">
+                <MoodPicker 
+                    Label="How are you feeling?"
+                    Moods="_moods"
+                    @bind-SelectedMoodId="_selectedMoodId"
+                    @bind-SecondaryMoodIds="_secondaryMoodIds"
+                    AllowSecondary="true" />
+            </div>
+            
+            @* Content Editor *@
+            <div class="card-elevated">
+                <div class="flex items-center justify-between mb-4">
+                    <label class="text-sm font-medium text-text-secondary">Your thoughts</label>
+                    <div class="flex items-center gap-2 text-xs text-text-muted">
+                        <span>@_wordCount words</span>
+                        <span>•</span>
+                        <span>Markdown supported</span>
+                    </div>
+                </div>
+                
+                @* Formatting Toolbar *@
+                <div class="flex flex-wrap gap-1 mb-3 p-2 bg-surface-container rounded-2xl">
+                    <button type="button" class="p-2 rounded-xl hover:bg-surface-elevated transition-colors" title="Bold" @onclick='() => InsertMarkdown("**", "**")'>
+                        <span class="material-symbols-rounded text-lg">format_bold</span>
+                    </button>
+                    <button type="button" class="p-2 rounded-xl hover:bg-surface-elevated transition-colors" title="Italic" @onclick='() => InsertMarkdown("*", "*")'>
+                        <span class="material-symbols-rounded text-lg">format_italic</span>
+                    </button>
+                    <button type="button" class="p-2 rounded-xl hover:bg-surface-elevated transition-colors" title="Heading" @onclick='() => InsertMarkdown("## ", "")'>
+                        <span class="material-symbols-rounded text-lg">title</span>
+                    </button>
+                    <div class="w-px h-6 bg-border-subtle mx-1 self-center"></div>
+                    <button type="button" class="p-2 rounded-xl hover:bg-surface-elevated transition-colors" title="Bullet List" @onclick='() => InsertMarkdown("- ", "")'>
+                        <span class="material-symbols-rounded text-lg">format_list_bulleted</span>
+                    </button>
+                    <button type="button" class="p-2 rounded-xl hover:bg-surface-elevated transition-colors" title="Numbered List" @onclick='() => InsertMarkdown("1. ", "")'>
+                        <span class="material-symbols-rounded text-lg">format_list_numbered</span>
+                    </button>
+                    <button type="button" class="p-2 rounded-xl hover:bg-surface-elevated transition-colors" title="Quote" @onclick='() => InsertMarkdown("> ", "")'>
+                        <span class="material-symbols-rounded text-lg">format_quote</span>
+                    </button>
+                    <div class="w-px h-6 bg-border-subtle mx-1 self-center"></div>
+                    <button type="button" class="p-2 rounded-xl hover:bg-surface-elevated transition-colors" title="Link" @onclick='() => InsertMarkdown("[", "](url)")'>
+                        <span class="material-symbols-rounded text-lg">link</span>
+                    </button>
+                    <div class="flex-1"></div>
+                    <button type="button" 
+                            class="p-2 rounded-xl transition-colors @(_showPreview ? "bg-accent-primary/20 text-accent-primary" : "hover:bg-surface-elevated text-text-muted")" 
+                            title="@(_showPreview ? "Hide Preview" : "Show Preview")" 
+                            @onclick="TogglePreview">
+                        <span class="material-symbols-rounded text-lg">@(_showPreview ? "visibility_off" : "visibility")</span>
+                    </button>
+                </div>
+                
+                @if (_showPreview)
+                {
+                    @* Split view: Editor and Preview side by side on desktop, stacked on mobile *@
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="flex flex-col">
+                            <span class="text-xs text-text-muted mb-2 font-medium">EDITOR</span>
+                            <textarea 
+                                class="input-solid min-h-[300px] resize-none font-mono text-sm leading-relaxed flex-1"
+                                placeholder="Start writing... Express your thoughts, feelings, and experiences. Use Markdown for formatting."
+                                @bind="_content"
+                                @bind:event="oninput"
+                                @bind:after="UpdateWordCount"
+                                @ref="_contentInput"></textarea>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-xs text-text-muted mb-2 font-medium">PREVIEW</span>
+                            <div class="input-solid min-h-[300px] overflow-auto flex-1">
+                                @if (!string.IsNullOrWhiteSpace(_content))
+                                {
+                                    <MarkdownRenderer Content="@_content" />
+                                }
+                                else
+                                {
+                                    <span class="text-text-muted italic">Your formatted text will appear here...</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <textarea 
+                        class="input-solid min-h-[300px] resize-none font-mono text-sm leading-relaxed"
+                        placeholder="Start writing... Express your thoughts, feelings, and experiences. Use Markdown for formatting."
+                        @bind="_content"
+                        @bind:event="oninput"
+                        @bind:after="UpdateWordCount"
+                        @ref="_contentInput"></textarea>
+                }
+            </div>
+            
+            @* Tags *@
+            <div class="card-elevated">
+                <TagPicker 
+                    Label="Tags"
+                    AvailableTags="_tags"
+                    @bind-SelectedTagIds="_selectedTagIds"
+                    AllowCreate="true"
+                    OnTagCreated="HandleTagCreated" />
+            </div>
+            
+            @* Advanced Options *@
+            <details class="card-elevated group">
+                <summary class="flex items-center justify-between cursor-pointer list-none">
+                    <span class="text-sm font-medium text-text-secondary">Advanced options</span>
+                    <span class="material-symbols-rounded text-text-muted transition-transform group-open:rotate-180">expand_more</span>
+                </summary>
+                
+                <div class="mt-4 pt-4 border-t border-border-subtle space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-sm font-medium text-text-primary">Mark as favorite</span>
+                            <p class="text-xs text-text-muted">Easily find your favorite entries later</p>
+                        </div>
+                        <ToggleSwitch @bind-Value="_isFavorite" />
+                    </div>
+                </div>
+            </details>
+        </form>
+        
+        @* Bottom Actions (Mobile) *@
+        <div class="md:hidden fixed bottom-20 inset-x-0 p-4 bg-surface-bg/80 backdrop-blur-lg border-t border-border-subtle">
+            <div class="flex gap-3">
+                <PillButton 
+                    Text="Cancel"
+                    Variant="PillButton.ButtonVariant.Secondary"
+                    AdditionalClasses="flex-1"
+                    OnClick="Cancel" />
+                <PillButton 
+                    Text="@(_isSaving ? "Saving..." : IsEditing ? "Update" : "Save Entry")"
+                    Icon="save"
+                    Disabled="_isSaving"
+                    AdditionalClasses="flex-1"
+                    OnClick="SaveEntry" />
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid? EntryId { get; set; }
+    
+    private bool IsEditing => EntryId.HasValue;
+    
+    // Form state
+    private string _title = "";
+    private string _content = "";
+    private int? _selectedMoodId;
+    private List<int> _secondaryMoodIds = new();
+    private List<Guid> _selectedTagIds = new();
+    private bool _isFavorite = false;
+    
+    // Data
+    private List<Mood> _moods = new();
+    private List<Tag> _tags = new();
+    private JournalEntry? _existingEntry;
+    
+    // UI state
+    private bool _isLoading = true;
+    private bool _isSaving = false;
+    private bool _hasUnsavedChanges = false;
+    private int _wordCount = 0;
+    private string? _errorMessage;
+    private ElementReference _contentInput;
+    private bool _showPreview = false;
+    
+    private void TogglePreview()
+    {
+        _showPreview = !_showPreview;
+    }
+    
+    protected override async Task OnInitializedAsync()
+    {
+        if (LockService.IsLocked)
+        {
+            NavigationManager.NavigateTo("/pin-lock", replace: true);
+            return;
+        }
+
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+
+        await LoadDataAsync();
+        
+        if (IsEditing)
+        {
+            await LoadEntryAsync();
+        }
+        
+        _isLoading = false;
+    }
+    
+    private async Task LoadDataAsync()
+    {
+        var userId = AuthService.CurrentUserId!.Value;
+        
+        // Load moods and tags in parallel
+        var moodsTask = MoodService.GetAllMoodsAsync();
+        var tagsTask = TagService.GetAllTagsAsync(userId);
+        
+        await Task.WhenAll(moodsTask, tagsTask);
+        
+        _moods = await moodsTask;
+        _tags = await tagsTask;
+    }
+    
+    private async Task LoadEntryAsync()
+    {
+        var userId = AuthService.CurrentUserId!.Value;
+        _existingEntry = await JournalService.GetEntryByIdAsync(EntryId!.Value, userId);
+        
+        if (_existingEntry == null)
+        {
+            NavigationManager.NavigateTo("/entries");
+            return;
+        }
+        
+        _title = _existingEntry.Title ?? "";
+        _content = _existingEntry.Content;
+        _selectedMoodId = _existingEntry.PrimaryMoodId;
+        _secondaryMoodIds = _existingEntry.SecondaryMoods.Select(sm => sm.MoodId).ToList();
+        _selectedTagIds = _existingEntry.EntryTags.Select(et => et.TagId).ToList();
+        _isFavorite = _existingEntry.IsFavorite;
+        UpdateWordCount();
+    }
+    
+    private void UpdateWordCount()
+    {
+        if (!string.IsNullOrWhiteSpace(_content))
+        {
+            _wordCount = _content.Split(new[] { ' ', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries).Length;
+        }
+        else
+        {
+            _wordCount = 0;
+        }
+        _hasUnsavedChanges = true;
+    }
+    
+    private async Task InsertMarkdown(string before, string after)
+    {
+        var updatedContent = await JSRuntime.InvokeAsync<string>("reflectaEditor.applyMarkdown", _contentInput, before, after);
+        _content = updatedContent ?? _content;
+        _hasUnsavedChanges = true;
+        UpdateWordCount();
+    }
+    
+    private async Task HandleTagCreated(Tag newTag)
+    {
+        var userId = AuthService.CurrentUserId!.Value;
+        var result = await TagService.CreateTagAsync(userId, newTag.Name);
+        
+        if (result.Success && result.Tag != null)
+        {
+            _tags.Add(result.Tag);
+            _selectedTagIds.Add(result.Tag.Id);
+            _hasUnsavedChanges = true;
+        }
+    }
+    
+    private async Task SaveEntry()
+    {
+        _errorMessage = null;
+        
+        // Validation
+        if (!_selectedMoodId.HasValue)
+        {
+            _errorMessage = "Please select how you're feeling";
+            return;
+        }
+        
+        if (string.IsNullOrWhiteSpace(_content))
+        {
+            _errorMessage = "Please write something in your entry";
+            return;
+        }
+        
+        _isSaving = true;
+        StateHasChanged();
+        
+        try
+        {
+            var userId = AuthService.CurrentUserId!.Value;
+            
+            if (IsEditing)
+            {
+                var updateDto = new UpdateEntryDto
+                {
+                    Title = string.IsNullOrWhiteSpace(_title) ? null : _title,
+                    Content = _content,
+                    PrimaryMoodId = _selectedMoodId.Value,
+                    SecondaryMoodIds = _secondaryMoodIds,
+                    TagIds = _selectedTagIds
+                };
+                
+                var result = await JournalService.UpdateEntryAsync(EntryId!.Value, userId, updateDto);
+                
+                if (result.Success)
+                {
+                    // Handle favorite status separately if changed
+                    if (_existingEntry != null && _existingEntry.IsFavorite != _isFavorite)
+                    {
+                        await JournalService.ToggleFavoriteAsync(EntryId!.Value, userId);
+                    }
+                    
+                    _hasUnsavedChanges = false;
+                    NavigationManager.NavigateTo($"/entry/{EntryId}");
+                }
+                else
+                {
+                    _errorMessage = result.Message;
+                }
+            }
+            else
+            {
+                var createDto = new CreateEntryDto
+                {
+                    Title = string.IsNullOrWhiteSpace(_title) ? null : _title,
+                    Content = _content,
+                    PrimaryMoodId = _selectedMoodId.Value,
+                    SecondaryMoodIds = _secondaryMoodIds,
+                    TagIds = _selectedTagIds
+                };
+                
+                var result = await JournalService.CreateEntryAsync(userId, createDto);
+                
+                if (result.Success && result.Entry != null)
+                {
+                    // Set favorite if checked
+                    if (_isFavorite)
+                    {
+                        await JournalService.ToggleFavoriteAsync(result.Entry.Id, userId);
+                    }
+                    
+                    _hasUnsavedChanges = false;
+                    NavigationManager.NavigateTo($"/entry/{result.Entry.Id}");
+                }
+                else
+                {
+                    _errorMessage = result.Message;
+                }
+            }
+        }
+        catch
+        {
+            _errorMessage = "An error occurred while saving. Please try again.";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+    
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo(IsEditing ? $"/entry/{EntryId}" : "/");
+    }
+}

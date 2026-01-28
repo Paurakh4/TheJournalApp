@@ -1,5 +1,419 @@
-﻿@page "/"
+@page "/"
 
-<h1>Hello, world!</h1>
+@inject IAuthService AuthService
+@inject IJournalService JournalService
+@inject IMoodService MoodService
+@inject IAnalyticsService AnalyticsService
+@inject ISettingsService SettingsService
+@inject ILockService LockService
+@inject NavigationManager NavigationManager
 
-Welcome to your new app.
+<PageTitle>Dashboard - Reflecta</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="flex items-center justify-center h-64">
+        <span class="material-symbols-rounded text-4xl text-accent-primary animate-spin">progress_activity</span>
+    </div>
+}
+else
+{
+    <div class="space-y-8">
+        @* Welcome Section *@
+        <section class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-3xl md:text-4xl font-bold text-text-primary mb-2">
+                    Good @GetTimeOfDay(), @_userName! <span class="material-symbols-rounded text-accent-primary align-middle">waving_hand</span>
+                </h1>
+                <p class="text-text-secondary">
+                    @GetCurrentDateDisplay()
+                </p>
+            </div>
+            
+            <StreakBadge Count="@_streakCount" Size="StreakBadge.BadgeSize.Large" />
+        </section>
+        
+        @* Quick Actions *@
+        <section class="flex flex-wrap gap-3">
+            @if (_hasTodayEntry)
+            {
+                <a href="/entry/@_todayEntryId/edit" class="btn-pill">
+                    <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" fill="currentColor" opacity=".5"/>
+                        <path fill="currentColor" d="M13.926 14.302c.245-.191.467-.413.912-.858l5.54-5.54c.134-.134.073-.365-.106-.427a6.1 6.1 0 0 1-2.3-1.449a6.1 6.1 0 0 1-1.45-2.3c-.061-.18-.292-.24-.426-.106l-5.54 5.54c-.445.444-.667.667-.858.912a5 5 0 0 0-.577.932c-.133.28-.233.579-.431 1.175l-.257.77l-.409 1.226l-.382 1.148a.817.817 0 0 0 1.032 1.033l1.15-.383l1.224-.408l.77-.257c.597-.199.895-.298 1.175-.432q.498-.237.933-.576m8.187-8.132a3.028 3.028 0 0 0-4.282-4.283l-.179.178a.73.73 0 0 0-.206.651c.027.15.077.37.168.633a4.9 4.9 0 0 0 1.174 1.863a4.9 4.9 0 0 0 1.862 1.174c.263.09.483.141.633.168c.24.043.48-.035.652-.207z"/>
+                    </svg>
+                    Edit Today's Entry
+                </a>
+            }
+            else
+            {
+                <a href="/entry/new" class="btn-pill">
+                    <span class="material-symbols-rounded">add</span>
+                    New Entry
+                </a>
+            }
+            <a href="/entries" class="btn-pill-secondary">
+                <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="currentColor" fill-rule="evenodd" d="M5.879 2.879C5 3.757 5 5.172 5 8v8c0 2.828 0 4.243.879 5.121C6.757 22 8.172 22 11 22h2c2.828 0 4.243 0 5.121-.879C19 20.243 19 18.828 19 16V8c0-2.828 0-4.243-.879-5.121C17.243 2 15.828 2 13 2h-2c-2.828 0-4.243 0-5.121.879M8.25 17a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 0 1.5H9a.75.75 0 0 1-.75-.75M9 12.25a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5zM8.25 9A.75.75 0 0 1 9 8.25h6a.75.75 0 0 1 0 1.5H9A.75.75 0 0 1 8.25 9" clip-rule="evenodd"/>
+                    <path fill="currentColor" d="M5.235 4.058C5 4.941 5 6.177 5 8v8c0 1.823 0 3.058.235 3.942L5 19.924c-.975-.096-1.631-.313-2.121-.803C2 18.243 2 16.828 2 14v-4c0-2.829 0-4.243.879-5.121c.49-.49 1.146-.707 2.121-.803zm13.53 15.884C19 19.058 19 17.822 19 16V8c0-1.823 0-3.059-.235-3.942l.235.018c.975.096 1.631.313 2.121.803C22 5.757 22 7.17 22 9.999v4c0 2.83 0 4.243-.879 5.122c-.49.49-1.146.707-2.121.803z" opacity=".5"/>
+                </svg>
+                View All Entries
+            </a>
+        </section>
+        
+        @* Stats Grid *@
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard 
+                Label="Total Entries"
+                Value="@_totalEntries.ToString()"
+                IconBgColor="accent-primary">
+                <IconSvg>
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path fill="currentColor" fill-rule="evenodd" d="M5.879 2.879C5 3.757 5 5.172 5 8v8c0 2.828 0 4.243.879 5.121C6.757 22 8.172 22 11 22h2c2.828 0 4.243 0 5.121-.879C19 20.243 19 18.828 19 16V8c0-2.828 0-4.243-.879-5.121C17.243 2 15.828 2 13 2h-2c-2.828 0-4.243 0-5.121.879M8.25 17a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 0 1.5H9a.75.75 0 0 1-.75-.75M9 12.25a.75.75 0 0 0 0 1.5h6a.75.75 0 0 0 0-1.5zM8.25 9A.75.75 0 0 1 9 8.25h6a.75.75 0 0 1 0 1.5H9A.75.75 0 0 1 8.25 9" clip-rule="evenodd"/>
+                        <path fill="currentColor" d="M5.235 4.058C5 4.941 5 6.177 5 8v8c0 1.823 0 3.058.235 3.942L5 19.924c-.975-.096-1.631-.313-2.121-.803C2 18.243 2 16.828 2 14v-4c0-2.829 0-4.243.879-5.121c.49-.49 1.146-.707 2.121-.803zm13.53 15.884C19 19.058 19 17.822 19 16V8c0-1.823 0-3.059-.235-3.942l.235.018c.975.096 1.631.313 2.121.803C22 5.757 22 7.17 22 9.999v4c0 2.83 0 4.243-.879 5.122c-.49.49-1.146.707-2.121.803z" opacity=".5"/>
+                    </svg>
+                </IconSvg>
+            </StatCard>
+            
+            <StatCard 
+                Label="Words Written"
+                Value="@FormatNumber(_totalWords)"
+                Icon="text_fields"
+                IconBgColor="accent-secondary" />
+            
+            <StatCard 
+                Label="Current Streak"
+                Value="@_streakCount.ToString()"
+                SubLabel="days in a row"
+                IconBgColor="mood-energetic">
+                <IconSvg>
+                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path fill="currentColor" d="M12.832 21.801c3.126-.626 7.168-2.875 7.168-8.69c0-5.291-3.873-8.815-6.658-10.434c-.619-.36-1.342.113-1.342.828v1.828c0 1.442-.606 4.074-2.29 5.169c-.86.559-1.79-.278-1.894-1.298l-.086-.838c-.1-.974-1.092-1.565-1.87-.971C4.461 8.46 3 10.33 3 13.11C3 20.221 8.289 22 10.933 22q.232 0 .484-.015c.446-.056 0 .099 1.415-.185" opacity=".5"/>
+                        <path fill="currentColor" d="M8 18.444c0 2.62 2.111 3.43 3.417 3.542c.446-.056 0 .099 1.415-.185C13.871 21.434 15 20.492 15 18.444c0-1.297-.819-2.098-1.46-2.473c-.196-.115-.424.03-.441.256c-.056.718-.746 1.29-1.215.744c-.415-.482-.59-1.187-.59-1.638v-.59c0-.354-.357-.59-.663-.408C9.495 15.008 8 16.395 8 18.445"/>
+                    </svg>
+                </IconSvg>
+            </StatCard>
+            
+            <StatCard 
+                Label="This Month"
+                Value="@_entriesThisMonth.ToString()"
+                SubLabel="entries"
+                IconBgColor="mood-calm">
+                <IconSvg>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+                        <path fill="currentColor" d="M6.96 2c.418 0 .756.31.756.692V4.09c.67-.012 1.422-.012 2.268-.012h4.032c.846 0 1.597 0 2.268.012V2.692c0-.382.338-.692.756-.692s.756.31.756.692V4.15c1.45.106 2.403.368 3.103 1.008c.7.641.985 1.513 1.101 2.842v1H2V8c.116-1.329.401-2.2 1.101-2.842c.7-.64 1.652-.902 3.103-1.008V2.692c0-.382.339-.692.756-.692"/>
+                        <path fill="currentColor" d="M22 14v-2c0-.839-.013-2.335-.026-3H2.006c-.013.665 0 2.161 0 3v2c0 3.771 0 5.657 1.17 6.828C4.349 22 6.234 22 10.004 22h4c3.77 0 5.654 0 6.826-1.172S22 17.771 22 14" opacity=".5"/>
+                        <path fill="currentColor" fill-rule="evenodd" d="M14 12.25A1.75 1.75 0 0 0 12.25 14v2a1.75 1.75 0 1 0 3.5 0v-2A1.75 1.75 0 0 0 14 12.25m0 1.5a.25.25 0 0 0-.25.25v2a.25.25 0 1 0 .5 0v-2a.25.25 0 0 0-.25-.25" clip-rule="evenodd"/>
+                        <path fill="currentColor" d="M11.25 13a.75.75 0 0 0-1.28-.53l-1.5 1.5a.75.75 0 0 0 1.06 1.06l.22-.22V17a.75.75 0 0 0 1.5 0z"/>
+                    </svg>
+                </IconSvg>
+            </StatCard>
+        </section>
+        
+        @* Mood Quick-Check Widget *@
+        <section class="card-elevated">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-text-primary">How are you feeling today?</h2>
+                <span class="text-xs text-text-muted">Quick mood check</span>
+            </div>
+            
+            <div class="flex flex-wrap gap-3">
+                @foreach (var mood in _quickMoods)
+                {
+                    <button class="flex flex-col items-center gap-2 p-4 rounded-2xl bg-surface-elevated-hover hover:bg-surface-elevated-active transition-all active:scale-95"
+                            @onclick="() => QuickMoodSelect(mood)">
+                        <span class="text-3xl">@mood.Emoji</span>
+                        <span class="text-xs text-text-secondary font-medium">@mood.Name</span>
+                    </button>
+                }
+            </div>
+        </section>
+        
+        @* Two Column Layout: Recent Entries & Activity *@
+        <div class="grid lg:grid-cols-3 gap-6">
+            @* Recent Entries *@
+            <section class="lg:col-span-2 space-y-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-lg font-semibold text-text-primary">Recent Entries</h2>
+                    <a href="/entries" class="text-sm text-accent-primary hover:underline">View all</a>
+                </div>
+                
+                @if (_recentEntries.Any())
+                {
+                    <div class="space-y-3">
+                        @foreach (var entry in _recentEntries)
+                        {
+                            <EntryCard 
+                                Id="@entry.Id"
+                                Date="@entry.CreatedAt"
+                                UpdatedAt="@entry.UpdatedAt"
+                                Title="@(entry.Title ?? "Untitled Entry")"
+                                Preview="@GetPreview(entry.Content)"
+                                Mood="@entry.PrimaryMood"
+                                Tags="@GetEntryTags(entry)"
+                                WordCount="@entry.WordCount"
+                                OnClick="@NavigateToEntry" />
+                        }
+                    </div>
+                }
+                else
+                {
+                    <EmptyState 
+                        Icon="edit_note"
+                        Title="No entries yet"
+                        Description="Start journaling today and track your thoughts, moods, and experiences.">
+                        <a href="/entry/new" class="btn-pill">
+                            <span class="material-symbols-rounded">add</span>
+                            Write Your First Entry
+                        </a>
+                    </EmptyState>
+                }
+            </section>
+            
+            @* Weekly Activity & Mood Trends *@
+            <aside class="space-y-6">
+                @* Weekly Activity *@
+                <div class="card-elevated">
+                    <h3 class="text-sm font-semibold text-text-secondary mb-4">This Week</h3>
+                    <div class="flex justify-between gap-1">
+                        @foreach (var day in _weeklyActivity)
+                        {
+                            <div class="flex flex-col items-center gap-2">
+                                <div class="w-8 h-20 rounded-xl bg-surface-elevated-hover flex items-end justify-center overflow-hidden">
+                                    <div class="w-full bg-accent-primary/80 rounded-t-lg transition-all" 
+                                         style="height: @(day.EntryCount > 0 ? "100%" : "0")"></div>
+                                </div>
+                                <span class="text-xs text-text-muted">@day.DayName</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+                
+                @* Top Moods *@
+                <div class="card-elevated">
+                    <h3 class="text-sm font-semibold text-text-secondary mb-4">Top Moods (30 days)</h3>
+                    @if (_topMoods.Any())
+                    {
+                        <div class="space-y-3">
+                            @foreach (var mood in _topMoods.Take(3))
+                            {
+                                <div class="flex items-center gap-3">
+                                    <span class="text-2xl">@mood.Mood.Emoji</span>
+                                    <div class="flex-1">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="text-sm font-medium text-text-primary">@mood.Mood.Name</span>
+                                            <span class="text-xs text-text-muted">@mood.Count times</span>
+                                        </div>
+                                        <div class="h-1.5 bg-surface-elevated-hover rounded-pill overflow-hidden">
+                                            <div class="h-full bg-accent-primary rounded-pill transition-all" 
+                                                 style="width: @mood.Percentage%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-sm text-text-muted">No mood data yet</p>
+                    }
+                </div>
+                
+                @* Quick Tags *@
+                <div class="card-elevated">
+                    <h3 class="text-sm font-semibold text-text-secondary mb-4">Frequent Tags</h3>
+                    @if (_frequentTags.Any())
+                    {
+                        <div class="flex flex-wrap gap-2">
+                            @foreach (var tag in _frequentTags)
+                            {
+                                <span class="tag-pill">@tag.Tag.Name</span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-sm text-text-muted">No tags used yet</p>
+                    }
+                </div>
+            </aside>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _isLoading = true;
+    private string _userName = "User";
+    private int _streakCount = 0;
+    private int _totalEntries = 0;
+    private int _totalWords = 0;
+    private int _entriesThisMonth = 0;
+    private bool _hasTodayEntry = false;
+    private Guid? _todayEntryId;
+    private string _timeZoneId = "UTC";
+    private string _currentDateDisplay = DateTime.Now.ToString("dddd, MMMM d, yyyy");
+    
+    private List<Mood> _quickMoods = new();
+    private List<JournalEntry> _recentEntries = new();
+    private List<WeeklyActivityData> _weeklyActivity = new();
+    private List<MoodDistributionData> _topMoods = new();
+    private List<(Tag Tag, int Count)> _frequentTags = new();
+    
+    protected override async Task OnInitializedAsync()
+    {
+        if (LockService.IsLocked)
+        {
+            NavigationManager.NavigateTo("/pin-lock", replace: true);
+            return;
+        }
+
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        
+        await LoadDashboardDataAsync();
+        _isLoading = false;
+    }
+    
+    private async Task LoadDashboardDataAsync()
+    {
+        var userId = AuthService.CurrentUserId!.Value;
+        var user = await AuthService.GetCurrentUserAsync();
+        _timeZoneId = await SettingsService.GetTimeZoneAsync(userId);
+        var localNow = GetUserLocalNow(_timeZoneId);
+        _currentDateDisplay = localNow.ToString("dddd, MMMM d, yyyy");
+        
+        _userName = user?.FirstName ?? user?.Username ?? "User";
+        
+        // Load analytics summary
+        var summary = await AnalyticsService.GetAnalyticsSummaryAsync(userId);
+        _streakCount = summary.CurrentStreak;
+        _totalEntries = summary.TotalEntries;
+        _totalWords = summary.TotalWords;
+        _weeklyActivity = summary.WeeklyActivity;
+        _topMoods = summary.MoodDistribution;
+        _frequentTags = summary.TopTags;
+        
+        // Get entries this month
+        var now = localNow;
+        var startOfMonth = new DateOnly(now.Year, now.Month, 1);
+        var monthDistribution = await AnalyticsService.GetMoodDistributionAsync(userId, startOfMonth);
+        _entriesThisMonth = monthDistribution.Sum(m => m.Count);
+        
+        // Check for today's entry
+        var today = DateOnly.FromDateTime(localNow);
+        var todayEntry = await JournalService.GetEntryByDateAsync(userId, today);
+        _hasTodayEntry = todayEntry != null;
+        _todayEntryId = todayEntry?.Id;
+        
+        // Load recent entries
+        _recentEntries = await JournalService.GetRecentEntriesAsync(userId, 3);
+        
+        // Load quick moods (first 6)
+        var allMoods = await MoodService.GetAllMoodsAsync();
+        _quickMoods = allMoods.Take(6).ToList();
+    }
+    
+    private string GetTimeOfDay()
+    {
+        var hour = GetUserLocalNow(_timeZoneId).Hour;
+        if (hour < 12) return "morning";
+        if (hour < 17) return "afternoon";
+        return "evening";
+    }
+
+    private string GetCurrentDateDisplay()
+    {
+        return _currentDateDisplay;
+    }
+
+    private static DateTime GetUserLocalNow(string? timeZoneId)
+    {
+        if (string.IsNullOrWhiteSpace(timeZoneId))
+            return DateTime.UtcNow;
+
+        var timeZone = ResolveTimeZone(timeZoneId);
+        return timeZone == null ? DateTime.UtcNow : TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, timeZone);
+    }
+
+    private static TimeZoneInfo? ResolveTimeZone(string timeZoneId)
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        }
+        catch
+        {
+            if (TryResolveIanaToWindows(timeZoneId, out var windowsId))
+                return TimeZoneInfo.FindSystemTimeZoneById(windowsId);
+
+            if (TryResolveWindowsToIana(timeZoneId, out var ianaId))
+                return TimeZoneInfo.FindSystemTimeZoneById(ianaId);
+
+            return null;
+        }
+    }
+
+    private static bool TryResolveIanaToWindows(string timeZoneId, out string windowsId)
+    {
+        windowsId = string.Empty;
+        try
+        {
+            return TimeZoneInfo.TryConvertIanaIdToWindowsId(timeZoneId, out windowsId);
+        }
+        catch (Exception ex) when (IsMissingTimeZoneMapping(ex))
+        {
+            return false;
+        }
+    }
+
+    private static bool TryResolveWindowsToIana(string timeZoneId, out string ianaId)
+    {
+        ianaId = string.Empty;
+        try
+        {
+            return TimeZoneInfo.TryConvertWindowsIdToIanaId(timeZoneId, out ianaId);
+        }
+        catch (Exception ex) when (IsMissingTimeZoneMapping(ex))
+        {
+            return false;
+        }
+    }
+
+    private static bool IsMissingTimeZoneMapping(Exception exception)
+    {
+        return exception is InvalidTimeZoneException || exception is TimeZoneNotFoundException;
+    }
+    
+    private string FormatNumber(int number)
+    {
+        return number >= 1000 ? $"{number / 1000.0:F1}k" : number.ToString();
+    }
+    
+    private string GetPreview(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return "";
+        // Return raw content - EntryCard handles markdown rendering
+        return content.Length > 200 ? content.Substring(0, 200) : content;
+    }
+    
+    private List<Tag> GetEntryTags(JournalEntry entry)
+    {
+        return entry.EntryTags.Select(et => et.Tag).Where(t => t != null).ToList()!;
+    }
+    
+    private void QuickMoodSelect(Mood mood)
+    {
+        NavigationManager.NavigateTo($"/entry/new?mood={mood.Id}");
+    }
+    
+    private void NavigateToEntry(Guid? id)
+    {
+        if (id.HasValue)
+        {
+            NavigationManager.NavigateTo($"/entry/{id}");
+        }
+    }
+}

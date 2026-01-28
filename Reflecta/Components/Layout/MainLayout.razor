@@ -1,17 +1,211 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject IJSRuntime JSRuntime
+@inject ISettingsService SettingsService
+@inject IAuthService AuthService
+@inject ILockService LockService
+@inject ReflectaAuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@implements IDisposable
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
-
-        <article class="content px-4">
-            @Body
+<div class="min-h-screen bg-surface-bg text-text-primary font-sans transition-colors duration-300">
+    @* Floating Rail Navigation - Desktop *@
+    <FloatingRailNav />
+    
+    @* Main Content Area *@
+    <main class="min-h-screen pl-0 md:pl-24 transition-all duration-300">
+        @* Top Bar *@
+        <header class="sticky top-0 z-40 px-4 md:px-8 py-4 bg-surface-bg/80 backdrop-blur-lg transition-colors duration-300">
+            <div class="flex items-center justify-between max-w-5xl mx-auto">
+                @* Mobile Menu Button *@
+                <button class="md:hidden btn-pill-ghost p-2" @onclick="ToggleMobileMenu">
+                    <span class="material-symbols-rounded text-2xl">menu</span>
+                </button>
+                
+                @* Logo - Mobile *@
+                <h1 class="md:hidden text-xl font-bold text-accent-primary tracking-tight">
+                    Reflecta
+                </h1>
+                
+                @* Search Bar - Desktop *@
+                <div class="hidden md:flex search-bar max-w-md flex-1">
+                    <span class="material-symbols-rounded text-text-muted">search</span>
+                    <input type="text" placeholder="Search entries, tags, moods..." class="text-sm" />
+                </div>
+                
+                @* User Actions *@
+                <div class="flex items-center gap-3">
+                    <button class="btn-pill-ghost p-2 relative">
+                        <span class="material-symbols-rounded text-xl">notifications</span>
+                    </button>
+                    <button class="avatar flex items-center justify-center bg-surface-elevated">
+                        <svg class="w-6 h-6 text-text-primary" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="12" cy="6" r="4" fill="currentColor"/>
+                            <ellipse cx="12" cy="17" fill="currentColor" opacity=".5" rx="7" ry="4"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+        
+        @* Page Content *@
+        <article class="px-4 md:px-8 pb-24 md:pb-8">
+            <div class="max-w-5xl mx-auto animate-fade-in">
+                @Body
+            </div>
         </article>
     </main>
+    
+    @* Mobile Bottom Navigation *@
+    <MobileBottomNav />
+    
+    @* Mobile Menu Overlay *@
+    @if (_isMobileMenuOpen)
+    {
+        <div class="modal-backdrop md:hidden" @onclick="ToggleMobileMenu">
+            <aside class="fixed left-0 top-0 h-full w-72 bg-surface-elevated p-6 animate-slide-in-right" 
+                   @onclick:stopPropagation>
+                <div class="flex items-center justify-between mb-8">
+                    <div class="flex items-center gap-3">
+                        <img src="assets/reflecta-logo.svg" alt="Reflecta logo" class="w-8 h-8" />
+                        <h2 class="text-xl font-bold text-accent-primary">Reflecta</h2>
+                    </div>
+                    <button class="btn-pill-ghost p-2" @onclick="ToggleMobileMenu">
+                        <span class="material-symbols-rounded">close</span>
+                    </button>
+                </div>
+                <MobileMenuContent OnNavigate="ToggleMobileMenu" />
+            </aside>
+        </div>
+    }
 </div>
+
+@code {
+    private bool _isMobileMenuOpen = false;
+    private bool _initialized = false;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        // Subscribe to lock state changes
+        LockService.OnLockStateChanged += HandleLockStateChanged;
+
+        // First, ensure the authentication state is properly restored from SecureStorage
+        // This will restore the AuthService's in-memory state if there's a valid session
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+
+        Guid? userId = null;
+
+        if (isAuthenticated && AuthService.IsAuthenticated && AuthService.CurrentUserId.HasValue)
+        {
+            userId = AuthService.CurrentUserId.Value;
+        }
+        else
+        {
+            // Try to get stored user ID for PIN unlock flow
+            userId = await AuthStateProvider.GetStoredUserIdForPinUnlockAsync();
+            
+            if (userId.HasValue)
+            {
+                // Restore the auth service state from the stored session
+                var user = await AuthService.GetUserByIdAsync(userId.Value);
+                if (user != null && user.IsActive)
+                {
+                    // This restores the in-memory auth state
+                    ((Reflecta.Services.AuthService)AuthService).SetCurrentUser(userId.Value);
+                }
+                else
+                {
+                    // Invalid user, redirect to login
+                    NavigationManager.NavigateTo("/login", replace: true);
+                    return;
+                }
+            }
+        }
+
+        if (userId.HasValue)
+        {
+            // Initialize lock service (will respect existing fresh login state)
+            await LockService.InitializeAsync(userId.Value);
+            _initialized = true;
+
+            // Check if user needs to set up PIN (mandatory)
+            var settings = await SettingsService.GetSettingsAsync(userId.Value);
+            if (settings == null || !settings.PinEnabled || string.IsNullOrEmpty(settings.PinHash))
+            {
+                // User doesn't have PIN set up - redirect to PIN setup
+                NavigationManager.NavigateTo("/pin-setup?Required=true", replace: true);
+                return;
+            }
+
+            // Check if locked and not fresh login
+            if (LockService.IsLocked && !LockService.IsFreshLogin)
+            {
+                NavigationManager.NavigateTo("/pin-lock", replace: true);
+            }
+        }
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await SyncThemeFromSettings();
+        }
+    }
+    
+    private void HandleLockStateChanged()
+    {
+        // Only navigate to PIN lock if locked and not a fresh login
+        if (LockService.IsLocked && !LockService.IsFreshLogin)
+        {
+            InvokeAsync(() => NavigationManager.NavigateTo("/pin-lock", replace: true));
+        }
+    }
+    
+    private async Task SyncThemeFromSettings()
+    {
+        try
+        {
+            if (AuthService.IsAuthenticated && AuthService.CurrentUserId.HasValue)
+            {
+                var settings = await SettingsService.GetSettingsAsync(AuthService.CurrentUserId.Value);
+                if (settings != null)
+                {
+                    var theme = settings.Theme ?? "dark";
+                    await JSRuntime.InvokeVoidAsync("reflectaTheme.setTheme", theme);
+                    await SyncTimeZoneAsync(settings.TimeZoneId);
+                }
+            }
+        }
+        catch
+        {
+            // Fallback to localStorage theme if settings can't be loaded
+        }
+    }
+    
+    private void ToggleMobileMenu()
+    {
+        _isMobileMenuOpen = !_isMobileMenuOpen;
+    }
+
+    private async Task SyncTimeZoneAsync(string? storedTimeZoneId)
+    {
+        var userId = AuthService.CurrentUserId;
+        if (!userId.HasValue)
+            return;
+
+        var detectedTimeZoneId = await JSRuntime.InvokeAsync<string>("reflectaTimeZone.getTimeZoneId");
+        if (string.IsNullOrWhiteSpace(detectedTimeZoneId))
+            return;
+
+        if (!string.Equals(storedTimeZoneId ?? string.Empty, detectedTimeZoneId, StringComparison.Ordinal))
+        {
+            await SettingsService.UpdateTimeZoneAsync(userId.Value, detectedTimeZoneId);
+        }
+    }
+    
+    public void Dispose()
+    {
+        LockService.OnLockStateChanged -= HandleLockStateChanged;
+    }
+}

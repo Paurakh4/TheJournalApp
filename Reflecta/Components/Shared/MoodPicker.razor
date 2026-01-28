@@ -1,0 +1,103 @@
+@* MoodPicker.razor - Emoji-based Mood Selection Component *@
+@using Reflecta.Models
+
+<div class="flex flex-col gap-3 @AdditionalClasses">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <label class="text-sm font-medium text-text-secondary">@Label</label>
+    }
+    
+    <div class="flex flex-wrap gap-2">
+        @foreach (var mood in Moods)
+        {
+            <button type="button"
+                    class="@GetMoodChipClasses(mood)"
+                    @onclick="() => SelectMood(mood)">
+                <span class="text-xl">@mood.Emoji</span>
+                <span class="text-sm">@mood.Name</span>
+            </button>
+        }
+    </div>
+    
+    @if (AllowSecondary && SelectedMoodId.HasValue)
+    {
+        <div class="mt-2">
+            <label class="text-xs text-text-muted mb-2 block">Secondary moods (optional, max 2)</label>
+            <div class="flex flex-wrap gap-2">
+                @foreach (var mood in Moods.Where(m => m.Id != SelectedMoodId))
+                {
+                    <button type="button"
+                            class="@GetSecondaryMoodClasses(mood)"
+                            disabled="@(SecondaryMoodIds.Count >= 2 && !SecondaryMoodIds.Contains(mood.Id))"
+                            @onclick="() => ToggleSecondaryMood(mood)">
+                        <span>@mood.Emoji</span>
+                    </button>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public List<Mood> Moods { get; set; } = new();
+    [Parameter] public int? SelectedMoodId { get; set; }
+    [Parameter] public EventCallback<int?> SelectedMoodIdChanged { get; set; }
+    [Parameter] public List<int> SecondaryMoodIds { get; set; } = new();
+    [Parameter] public EventCallback<List<int>> SecondaryMoodIdsChanged { get; set; }
+    [Parameter] public bool AllowSecondary { get; set; } = false;
+    [Parameter] public string? AdditionalClasses { get; set; }
+
+    private string GetMoodChipClasses(Mood mood)
+    {
+        var isSelected = SelectedMoodId == mood.Id;
+        var categoryClass = mood.Category switch
+        {
+            MoodCategory.Positive => "mood-chip-positive",
+            MoodCategory.Negative => "mood-chip-negative",
+            _ => "mood-chip-neutral"
+        };
+        
+        return $"mood-chip {categoryClass} {(isSelected ? "selected" : "")}";
+    }
+
+    private string GetSecondaryMoodClasses(Mood mood)
+    {
+        var isSelected = SecondaryMoodIds.Contains(mood.Id);
+        var baseClasses = "w-10 h-10 rounded-2xl flex items-center justify-center text-lg transition-all";
+        
+        if (isSelected)
+        {
+            return $"{baseClasses} bg-accent-primary/20 ring-2 ring-accent-primary";
+        }
+        
+        return $"{baseClasses} bg-surface-elevated hover:bg-surface-elevated-hover disabled:opacity-40";
+    }
+
+    private async Task SelectMood(Mood mood)
+    {
+        SelectedMoodId = SelectedMoodId == mood.Id ? null : mood.Id;
+        await SelectedMoodIdChanged.InvokeAsync(SelectedMoodId);
+        
+        // Clear secondary moods if primary is deselected
+        if (!SelectedMoodId.HasValue && SecondaryMoodIds.Any())
+        {
+            SecondaryMoodIds.Clear();
+            await SecondaryMoodIdsChanged.InvokeAsync(SecondaryMoodIds);
+        }
+    }
+
+    private async Task ToggleSecondaryMood(Mood mood)
+    {
+        if (SecondaryMoodIds.Contains(mood.Id))
+        {
+            SecondaryMoodIds.Remove(mood.Id);
+        }
+        else if (SecondaryMoodIds.Count < 2)
+        {
+            SecondaryMoodIds.Add(mood.Id);
+        }
+        
+        await SecondaryMoodIdsChanged.InvokeAsync(SecondaryMoodIds);
+    }
+}

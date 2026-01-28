@@ -1,0 +1,76 @@
+@page "/backup"
+
+<PageTitle>Backup & Sync - Reflecta</PageTitle>
+
+<div class="max-w-5xl mx-auto space-y-6">
+    @* Header *@
+    <header class="flex items-center gap-4">
+        <a href="/settings" class="btn-icon">
+            <span class="material-symbols-rounded">arrow_back</span>
+        </a>
+        <div>
+            <h1 class="text-2xl md:text-3xl font-bold text-text-primary">Backup & Sync</h1>
+            <p class="text-text-secondary">Keep your data safe</p>
+        </div>
+    </header>
+    
+    @* Coming Soon Card *@
+    <section class="card-elevated text-center py-12">
+        <div class="inline-flex items-center justify-center w-20 h-20 rounded-full bg-accent-primary/20 mb-6">
+            <span class="material-symbols-rounded text-4xl text-accent-primary">cloud_sync</span>
+        </div>
+        
+        <h2 class="text-xl font-semibold text-text-primary mb-2">Cloud Backup Coming Soon</h2>
+        <p class="text-text-secondary max-w-md mx-auto mb-6">
+            We're working on secure cloud backup and sync features to keep your journal safe and accessible across devices.
+        </p>
+        
+        <div class="bg-surface-container rounded-2xl p-4 max-w-sm mx-auto">
+            <h3 class="font-medium text-text-primary mb-2">Planned Features</h3>
+            <ul class="text-sm text-text-secondary text-left space-y-2">
+                <li class="flex items-start gap-2">
+                    <span class="material-symbols-rounded text-accent-primary text-lg">cloud_upload</span>
+                    Automatic cloud backup
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="material-symbols-rounded text-accent-primary text-lg">sync</span>
+                    Cross-device sync
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="material-symbols-rounded text-accent-primary text-lg">lock</span>
+                    End-to-end encryption
+                </li>
+                <li class="flex items-start gap-2">
+                    <span class="material-symbols-rounded text-accent-primary text-lg">history</span>
+                    Backup history & restore
+                </li>
+            </ul>
+        </div>
+    </section>
+    
+    @* Current Options *@
+    <section class="card-elevated">
+        <h2 class="text-lg font-semibold text-text-primary mb-4">Available Now</h2>
+        
+        <div class="space-y-3">
+            <a href="/export" class="flex items-center gap-3 w-full p-4 rounded-2xl bg-surface-container hover:bg-surface-elevated-hover transition-colors">
+                <span class="material-symbols-rounded text-xl text-accent-primary">download</span>
+                <div class="flex-1 text-left">
+                    <span class="font-medium text-text-primary">Export Your Data</span>
+                    <p class="text-xs text-text-muted">Download journal entries as JSON, Markdown, or PDF</p>
+                </div>
+                <span class="material-symbols-rounded text-text-muted">chevron_right</span>
+            </a>
+        </div>
+        
+        <p class="text-xs text-text-muted mt-4">
+            💡 Tip: Regularly export your data as a manual backup until cloud sync is available.
+        </p>
+    </section>
+    
+    @* Future Enhancement Note *@
+    <div class="text-center text-sm text-text-muted">
+        <span class="material-symbols-rounded text-lg align-middle mr-1">schedule</span>
+        Cloud backup will be available in a future update
+    </div>
+</div>

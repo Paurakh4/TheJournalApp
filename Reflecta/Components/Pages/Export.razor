@@ -1,0 +1,619 @@
+@page "/export"
+
+@inject IExportService ExportService
+@inject IAuthService AuthService
+@inject IJournalService JournalService
+@inject ILockService LockService
+@inject NavigationManager NavigationManager
+@using Microsoft.Maui.ApplicationModel.DataTransfer
+@using Microsoft.Maui.Devices
+@using Microsoft.Maui.Storage
+@using System.Diagnostics
+
+<PageTitle>Export Data - Reflecta</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="flex items-center justify-center h-64">
+        <span class="material-symbols-rounded text-4xl text-accent-primary animate-spin">progress_activity</span>
+    </div>
+}
+else
+{
+<div class="max-w-5xl mx-auto space-y-6">
+    @* Header *@
+    <header class="flex items-center gap-4">
+        <a href="/settings" class="btn-pill-ghost p-2">
+            <span class="material-symbols-rounded">arrow_back</span>
+        </a>
+        <div>
+            <h1 class="text-2xl md:text-3xl font-bold text-text-primary">Export Data</h1>
+            <p class="text-text-secondary">Download your journal entries</p>
+        </div>
+    </header>
+
+    @if (_showSaveBanner)
+    {
+        <div class="card-elevated flex items-center gap-4 p-4">
+            <div class="w-10 h-10 rounded-full bg-accent-primary/20 flex items-center justify-center">
+                <span class="material-symbols-rounded text-accent-primary">download_done</span>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-text-primary">Export saved</div>
+                <div class="text-xs text-text-muted break-all">@_saveBannerMessage</div>
+            </div>
+            @if (DeviceInfo.Platform == DevicePlatform.MacCatalyst && !string.IsNullOrWhiteSpace(_lastSavedPath))
+            {
+                <button class="btn-pill-solid px-4 py-2 text-sm" @onclick="ShowInFinder">Show in Finder</button>
+            }
+        </div>
+    }
+    
+    @* Export Options *@
+    <section class="card-elevated">
+        <h2 class="text-lg font-semibold text-text-primary mb-4">Export Options</h2>
+        
+        @* Date Range *@
+        <div class="space-y-4 mb-6">
+            <label class="text-sm font-medium text-text-secondary">Date Range</label>
+            
+            <div class="flex flex-wrap gap-2">
+                @foreach (var option in _dateRangeOptions)
+                {
+                    <button class="@GetDateRangeClass(option)" @onclick="() => SelectDateRange(option)">
+                        @option
+                    </button>
+                }
+            </div>
+            
+            @if (_selectedDateRange == "Custom")
+            {
+                <div class="flex gap-4 animate-fade-in">
+                    <div class="flex-1">
+                        <label class="text-xs text-text-muted mb-1 block">From</label>
+                        <input type="date" class="input-solid-sm w-full" @bind="_customDateFrom" />
+                    </div>
+                    <div class="flex-1">
+                        <label class="text-xs text-text-muted mb-1 block">To</label>
+                        <input type="date" class="input-solid-sm w-full" @bind="_customDateTo" />
+                    </div>
+                </div>
+            }
+        </div>
+        
+        @* Export Format *@
+        <div class="space-y-4 mb-6">
+            <label class="text-sm font-medium text-text-secondary">Export Format</label>
+            
+            <div class="grid md:grid-cols-2 gap-3">
+                @foreach (var format in _exportFormats)
+                {
+                    <button class="@GetFormatClass(format)"
+                            @onclick="() => _selectedFormat = format.Id">
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-12 rounded-2xl bg-surface-container flex items-center justify-center">
+                                <span class="material-symbols-rounded text-2xl @(format.Id == _selectedFormat ? "text-accent-primary" : "text-text-secondary")">
+                                    @format.Icon
+                                </span>
+                            </div>
+                            <div class="text-left">
+                                <span class="font-medium text-text-primary">@format.Name</span>
+                                <p class="text-xs text-text-muted">@format.Description</p>
+                            </div>
+                        </div>
+                        @if (format.Id == _selectedFormat)
+                        {
+                            <span class="material-symbols-rounded text-accent-primary">check_circle</span>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+        
+        @* Include Options *@
+        <div class="space-y-4">
+            <label class="text-sm font-medium text-text-secondary">Include in Export</label>
+            
+            <div class="space-y-3">
+                <label class="flex items-center gap-3 p-3 rounded-2xl bg-surface-container cursor-pointer">
+                    <input type="checkbox" class="w-5 h-5 rounded-lg accent-accent-primary" @bind="_includeMoods" />
+                    <div class="flex-1">
+                        <span class="font-medium text-text-primary">Mood data</span>
+                        <p class="text-xs text-text-muted">Primary and secondary moods</p>
+                    </div>
+                </label>
+                
+                <label class="flex items-center gap-3 p-3 rounded-2xl bg-surface-container cursor-pointer">
+                    <input type="checkbox" class="w-5 h-5 rounded-lg accent-accent-primary" @bind="_includeTags" />
+                    <div class="flex-1">
+                        <span class="font-medium text-text-primary">Tags</span>
+                        <p class="text-xs text-text-muted">All associated tags</p>
+                    </div>
+                </label>
+                
+                <label class="flex items-center gap-3 p-3 rounded-2xl bg-surface-container cursor-pointer">
+                    <input type="checkbox" class="w-5 h-5 rounded-lg accent-accent-primary" @bind="_includeMetadata" />
+                    <div class="flex-1">
+                        <span class="font-medium text-text-primary">Metadata</span>
+                        <p class="text-xs text-text-muted">Word counts, timestamps, etc.</p>
+                    </div>
+                </label>
+            </div>
+        </div>
+    </section>
+    
+    @* Export Preview *@
+    <section class="card-elevated">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-text-primary">Export Preview</h2>
+            <span class="text-sm text-text-muted">@_previewEntryCount entries</span>
+        </div>
+        
+        <div class="p-4 rounded-2xl bg-surface-container">
+            <div class="flex items-center justify-between text-sm">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2 text-text-secondary">
+                        <span class="material-symbols-rounded text-lg">article</span>
+                        @_previewEntryCount entries
+                    </div>
+                    <div class="flex items-center gap-2 text-text-secondary">
+                        <span class="material-symbols-rounded text-lg">text_fields</span>
+                        ~@FormatNumber(_previewWordCount) words
+                    </div>
+                </div>
+                <span class="text-text-muted">~@_estimatedFileSize</span>
+            </div>
+        </div>
+    </section>
+    
+    @* Export Button *@
+    <PillButton 
+        Text="Export Now"
+        Icon="download"
+        Size="PillButton.ButtonSize.Large"
+        AdditionalClasses="w-full"
+        OnClick="StartExport" />
+    
+    @* Export History *@
+    <section class="card-elevated">
+        <h2 class="text-lg font-semibold text-text-primary mb-4">Export History</h2>
+        
+        @if (_exportHistory.Any())
+        {
+            <div class="space-y-3">
+                @foreach (var export in _exportHistory)
+                {
+                    <div class="flex items-center justify-between p-4 rounded-2xl bg-surface-container">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-accent-primary/20 flex items-center justify-center">
+                                <span class="material-symbols-rounded text-lg text-accent-primary">
+                                    @GetFormatIcon(export.ExportFormat)
+                                </span>
+                            </div>
+                            <div>
+                                <span class="font-medium text-text-primary">@export.ExportFormat Export</span>
+                                <p class="text-xs text-text-muted">
+                                    @export.ExportedAt.ToString("MMM d, yyyy") • @export.EntriesCount entries • @FormatFileSize(export.FileSizeBytes ?? 0)
+                                </p>
+                            </div>
+                        </div>
+                        <button class="btn-pill-ghost p-2" title="Download again" @onclick="() => DownloadHistoryExport(export)">
+                            <span class="material-symbols-rounded">download</span>
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="text-center py-8">
+                <span class="material-symbols-rounded text-4xl text-text-muted mb-2">history</span>
+                <p class="text-sm text-text-muted">No previous exports</p>
+            </div>
+        }
+    </section>
+</div>
+}
+
+@* Export Progress Modal *@
+<Modal @bind-IsOpen="_showExportProgress" Title="Exporting..." ShowCloseButton="false" CloseOnBackdropClick="false">
+    <ChildContent>
+        <div class="text-center py-4">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-surface-elevated border-t-accent-primary animate-spin"></div>
+            <p class="text-text-secondary">Preparing your export...</p>
+            <p class="text-sm text-text-muted mt-2">@_exportProgress% complete</p>
+        </div>
+    </ChildContent>
+</Modal>
+
+@* Export Complete Modal *@
+<Modal @bind-IsOpen="_showExportComplete" Title="Export Complete">
+    <ChildContent>
+        <div class="text-center py-4">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-accent-primary/20 flex items-center justify-center">
+                <span class="material-symbols-rounded text-3xl text-accent-primary">check</span>
+            </div>
+            <p class="text-text-primary font-medium">Your export is ready!</p>
+            <p class="text-sm text-text-muted mt-2">@_previewEntryCount entries exported successfully</p>
+        </div>
+    </ChildContent>
+    
+    <FooterContent>
+        <PillButton Text="Download" Icon="download" OnClick="DownloadExport" AdditionalClasses="w-full" />
+    </FooterContent>
+</Modal>
+
+@* Export Error Modal *@
+<Modal @bind-IsOpen="_showExportError" Title="Export Failed">
+    <ChildContent>
+        <div class="text-center py-4">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/20 flex items-center justify-center">
+                <span class="material-symbols-rounded text-3xl text-red-400">error</span>
+            </div>
+            <p class="text-text-primary font-medium">Export failed</p>
+            <p class="text-sm text-text-muted mt-2">@_exportError</p>
+            <p class="text-xs text-text-muted mt-4">Try using HTML format instead, or export fewer entries.</p>
+        </div>
+    </ChildContent>
+    
+    <FooterContent>
+        <button class="btn-pill-ghost w-full" @onclick="() => _showExportError = false">Close</button>
+    </FooterContent>
+</Modal>
+
+@code {
+    private bool _isLoading = true;
+    
+    private List<string> _dateRangeOptions = new() { "All Time", "This Year", "Last 30 Days", "Last 7 Days", "Custom" };
+    private string _selectedDateRange = "All Time";
+    private DateTime _customDateFrom = DateTime.Now.AddMonths(-1);
+    private DateTime _customDateTo = DateTime.Now;
+    
+    private string _selectedFormat = "pdf";
+    private List<ExportFormatOption> _exportFormats = new()
+    {
+        new() { Id = "pdf", Name = "PDF", Description = "Printable document", Icon = "picture_as_pdf", Format = ExportFormat.PDF },
+        new() { Id = "html", Name = "HTML", Description = "Web-ready format", Icon = "code_blocks", Format = ExportFormat.HTML },
+        new() { Id = "markdown", Name = "Markdown", Description = "Plain text with formatting", Icon = "code", Format = ExportFormat.Markdown },
+        new() { Id = "text", Name = "Plain Text", Description = "Simple text format", Icon = "description", Format = ExportFormat.PlainText },
+    };
+    
+    private bool _includeMoods = true;
+    private bool _includeTags = true;
+    private bool _includeMetadata = true;
+    
+    private int _previewEntryCount = 0;
+    private int _previewWordCount = 0;
+    private string _estimatedFileSize = "0 KB";
+    
+    private bool _showExportProgress = false;
+    private bool _showExportComplete = false;
+    private bool _showExportError = false;
+    private string? _exportError = null;
+    private int _exportProgress = 0;
+    private bool _showSaveBanner = false;
+    private string _saveBannerMessage = "";
+    private string? _lastSavedPath;
+    
+    private List<ExportLog> _exportHistory = new();
+    
+    private ExportResult? _lastExportResult;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        if (LockService.IsLocked)
+        {
+            NavigationManager.NavigateTo("/pin-lock", replace: true);
+            return;
+        }
+
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        
+        await LoadDataAsync();
+        _isLoading = false;
+    }
+    
+    private async Task LoadDataAsync()
+    {
+        var userId = AuthService.CurrentUserId!.Value;
+        
+        // Load export history
+        _exportHistory = await ExportService.GetExportHistoryAsync(userId);
+        
+        // Load preview counts
+        await UpdatePreviewCounts();
+    }
+    
+    private async Task UpdatePreviewCounts()
+    {
+        var userId = AuthService.CurrentUserId!.Value;
+        var (startDate, endDate) = GetDateRange();
+        
+        var filter = new EntryFilterDto
+        {
+            StartDate = startDate,
+            EndDate = endDate,
+            PageSize = 1000
+        };
+        
+        var entries = await JournalService.GetEntriesAsync(userId, filter);
+        _previewEntryCount = entries.TotalCount;
+        _previewWordCount = entries.Items.Sum(e => e.WordCount);
+        
+        // Estimate file size (rough approximation)
+        var avgBytesPerEntry = _selectedFormat switch
+        {
+            "pdf" => 2000,
+            "html" => 1500,
+            "markdown" => 500,
+            "text" => 300,
+            _ => 1000
+        };
+        var estimatedBytes = _previewEntryCount * avgBytesPerEntry;
+        _estimatedFileSize = FormatFileSize(estimatedBytes);
+    }
+    
+    private (DateOnly startDate, DateOnly endDate) GetDateRange()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        
+        return _selectedDateRange switch
+        {
+            "This Year" => (new DateOnly(today.Year, 1, 1), today),
+            "Last 30 Days" => (today.AddDays(-30), today),
+            "Last 7 Days" => (today.AddDays(-7), today),
+            "Custom" => (DateOnly.FromDateTime(_customDateFrom), DateOnly.FromDateTime(_customDateTo)),
+            _ => (DateOnly.MinValue, today) // All Time
+        };
+    }
+    
+    private async Task SelectDateRange(string option)
+    {
+        _selectedDateRange = option;
+        await UpdatePreviewCounts();
+    }
+    
+    private string GetDateRangeClass(string option)
+    {
+        return option == _selectedDateRange
+            ? "px-4 py-2 rounded-pill bg-accent-primary text-text-inverse text-sm font-medium"
+            : "px-4 py-2 rounded-pill bg-surface-elevated text-text-secondary text-sm font-medium hover:bg-surface-elevated-hover transition-all";
+    }
+    
+    private string GetFormatClass(ExportFormatOption format)
+    {
+        var baseClasses = "flex items-center justify-between p-4 rounded-2xl transition-all text-left w-full";
+        return format.Id == _selectedFormat
+            ? $"{baseClasses} bg-accent-primary/10 ring-2 ring-accent-primary"
+            : $"{baseClasses} bg-surface-container hover:bg-surface-elevated-hover";
+    }
+    
+    private string GetFormatIcon(ExportFormat format)
+    {
+        return format switch
+        {
+            ExportFormat.PDF => "picture_as_pdf",
+            ExportFormat.HTML => "code_blocks",
+            ExportFormat.Markdown => "code",
+            ExportFormat.PlainText => "description",
+            _ => "description"
+        };
+    }
+    
+    private string FormatNumber(int number)
+    {
+        return number >= 1000 ? $"{number / 1000.0:F1}k" : number.ToString();
+    }
+    
+    private string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes / (1024.0 * 1024.0):F1} MB";
+    }
+    
+    private async Task StartExport()
+    {
+        _showExportProgress = true;
+        _exportProgress = 0;
+        _exportError = null;
+        StateHasChanged();
+        
+        var userId = AuthService.CurrentUserId!.Value;
+        var (startDate, endDate) = GetDateRange();
+        var selectedFormat = _exportFormats.First(f => f.Id == _selectedFormat);
+        
+        var options = new ExportOptions
+        {
+            StartDate = startDate,
+            EndDate = endDate,
+            Format = selectedFormat.Format,
+            IncludeMoods = _includeMoods,
+            IncludeTags = _includeTags,
+            IncludeWordCount = _includeMetadata
+        };
+        
+        // Simulate progress while export runs
+        var progressTask = Task.Run(async () =>
+        {
+            for (var i = 0; i <= 80; i += 10)
+            {
+                _exportProgress = i;
+                await InvokeAsync(StateHasChanged);
+                await Task.Delay(100);
+            }
+        });
+        
+        try
+        {
+            _lastExportResult = await ExportService.ExportEntriesAsync(userId, options);
+            
+            await progressTask;
+            _exportProgress = 100;
+            StateHasChanged();
+            await Task.Delay(200);
+            
+            _showExportProgress = false;
+            
+            if (_lastExportResult.Success)
+            {
+                _showExportComplete = true;
+                // Refresh history
+                _exportHistory = await ExportService.GetExportHistoryAsync(userId);
+            }
+            else
+            {
+                _exportError = _lastExportResult.Message ?? "Export failed";
+                _showExportError = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            await progressTask;
+            _showExportProgress = false;
+            _exportError = $"Export failed: {ex.Message}";
+            _showExportError = true;
+        }
+    }
+    
+    private async Task DownloadExport()
+    {
+        _showExportComplete = false;
+        
+        if (_lastExportResult?.FileData == null || string.IsNullOrWhiteSpace(_lastExportResult.FileName)) return;
+
+        var savedPath = await SaveExportFileAsync(_lastExportResult.FileData, _lastExportResult.FileName, _lastExportResult.ContentType);
+        ShowSaveBanner(savedPath);
+    }
+    
+    private async Task DownloadHistoryExport(ExportLog log)
+    {
+        // Re-export with same parameters
+        var userId = AuthService.CurrentUserId!.Value;
+        var options = new ExportOptions
+        {
+            StartDate = log.DateRangeStart,
+            EndDate = log.DateRangeEnd,
+            Format = log.ExportFormat,
+            IncludeMoods = true,
+            IncludeTags = true,
+            IncludeWordCount = true
+        };
+        
+        var result = await ExportService.ExportEntriesAsync(userId, options);
+        
+        if (result.Success && result.FileData != null && !string.IsNullOrWhiteSpace(result.FileName))
+        {
+            var savedPath = await SaveExportFileAsync(result.FileData, result.FileName, result.ContentType);
+            ShowSaveBanner(savedPath);
+        }
+    }
+
+    private async Task<string?> SaveExportFileAsync(byte[] fileData, string fileName, string? contentType)
+    {
+        var safeFileName = string.IsNullOrWhiteSpace(fileName)
+            ? $"reflecta_export_{DateTime.UtcNow:yyyyMMdd_HHmmss}.txt"
+            : Path.GetFileName(fileName);
+
+        if (DeviceInfo.Platform == DevicePlatform.MacCatalyst)
+        {
+            try
+            {
+                var downloadsPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");
+                Directory.CreateDirectory(downloadsPath);
+                var filePath = GetUniqueFilePath(downloadsPath, safeFileName);
+                await File.WriteAllBytesAsync(filePath, fileData);
+                return filePath;
+            }
+            catch
+            {
+            }
+        }
+
+        var tempPath = Path.Combine(FileSystem.CacheDirectory, safeFileName);
+        await File.WriteAllBytesAsync(tempPath, fileData);
+
+        await Share.Default.RequestAsync(new ShareFileRequest
+        {
+            Title = "Reflecta Export",
+            File = new ShareFile(tempPath, contentType ?? "application/octet-stream")
+        });
+
+        return null;
+    }
+
+    private void ShowSaveBanner(string? savedPath)
+    {
+        _saveBannerMessage = string.IsNullOrWhiteSpace(savedPath)
+            ? "Export ready. Choose where to save it."
+            : $"Saved to {savedPath}";
+        _lastSavedPath = string.IsNullOrWhiteSpace(savedPath) ? null : savedPath;
+        _showSaveBanner = true;
+        _ = HideSaveBannerAsync();
+    }
+
+    private Task ShowInFinder()
+    {
+        if (string.IsNullOrWhiteSpace(_lastSavedPath))
+        {
+            return Task.CompletedTask;
+        }
+
+        try
+        {
+            var startInfo = new ProcessStartInfo("open", $"-R \"{_lastSavedPath}\"")
+            {
+                UseShellExecute = false
+            };
+            Process.Start(startInfo);
+        }
+        catch
+        {
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task HideSaveBannerAsync()
+    {
+        await Task.Delay(4000);
+        _showSaveBanner = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string GetUniqueFilePath(string directoryPath, string fileName)
+    {
+        var filePath = Path.Combine(directoryPath, fileName);
+        if (!File.Exists(filePath))
+        {
+            return filePath;
+        }
+
+        var fileBaseName = Path.GetFileNameWithoutExtension(fileName);
+        var extension = Path.GetExtension(fileName);
+        var counter = 1;
+
+        while (true)
+        {
+            var candidate = Path.Combine(directoryPath, $"{fileBaseName} ({counter}){extension}");
+            if (!File.Exists(candidate))
+            {
+                return candidate;
+            }
+            counter++;
+        }
+    }
+    
+    private class ExportFormatOption
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Icon { get; set; } = "";
+        public ExportFormat Format { get; set; }
+    }
+}

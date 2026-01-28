@@ -1,0 +1,94 @@
+@* SolidInput.razor - Material You Filled Input Container *@
+
+<div class="flex flex-col gap-2 @AdditionalClasses">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <label class="text-sm font-medium text-text-secondary ml-2">@Label</label>
+    }
+    
+    <div class="relative">
+        @if (!string.IsNullOrEmpty(Icon))
+        {
+            <span class="material-symbols-rounded absolute left-4 top-1/2 -translate-y-1/2 text-text-muted">@Icon</span>
+        }
+        
+        @if (IsTextArea)
+        {
+            <textarea 
+                class="@GetInputClasses()"
+                placeholder="@Placeholder"
+                rows="@Rows"
+                disabled="@Disabled"
+                @oninput="HandleInput">@Value</textarea>
+        }
+        else
+        {
+            <input 
+                type="@InputType"
+                class="@GetInputClasses()"
+                placeholder="@Placeholder"
+                disabled="@Disabled"
+                value="@Value"
+                @oninput="HandleInput" />
+        }
+        
+        @if (ShowClearButton && !string.IsNullOrEmpty(Value))
+        {
+            <button type="button" 
+                    class="absolute right-4 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary transition-colors"
+                    @onclick="ClearInput">
+                <span class="material-symbols-rounded text-lg">close</span>
+            </button>
+        }
+    </div>
+    
+    @if (!string.IsNullOrEmpty(HelperText))
+    {
+        <span class="text-xs text-text-muted ml-2">@HelperText</span>
+    }
+    
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <span class="text-xs text-mood-negative ml-2">@ErrorMessage</span>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string InputType { get; set; } = "text";
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public bool IsTextArea { get; set; } = false;
+    [Parameter] public int Rows { get; set; } = 4;
+    [Parameter] public bool Disabled { get; set; } = false;
+    [Parameter] public bool ShowClearButton { get; set; } = false;
+    [Parameter] public string? HelperText { get; set; }
+    [Parameter] public string? ErrorMessage { get; set; }
+    [Parameter] public string? AdditionalClasses { get; set; }
+    [Parameter] public bool IsSmall { get; set; } = false;
+
+    private string GetInputClasses()
+    {
+        var baseClass = IsSmall ? "input-solid-sm" : "input-solid";
+        var iconPadding = !string.IsNullOrEmpty(Icon) ? "pl-12" : "";
+        var clearPadding = ShowClearButton ? "pr-12" : "";
+        var textareaClass = IsTextArea ? "resize-none min-h-[120px]" : "";
+        var errorClass = !string.IsNullOrEmpty(ErrorMessage) ? "ring-2 ring-mood-negative/50" : "";
+        
+        return $"{baseClass} {iconPadding} {clearPadding} {textareaClass} {errorClass}".Trim();
+    }
+
+    private async Task HandleInput(ChangeEventArgs e)
+    {
+        Value = e.Value?.ToString();
+        await ValueChanged.InvokeAsync(Value);
+    }
+
+    private async Task ClearInput()
+    {
+        Value = "";
+        await ValueChanged.InvokeAsync(Value);
+    }
+}

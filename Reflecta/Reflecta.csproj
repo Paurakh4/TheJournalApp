@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+<Project Sdk="Microsoft.NET.Sdk.Razor">
 
     <PropertyGroup>
         <TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
@@ -37,30 +37,82 @@
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
         <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+
+        <QuestPDFVersion>2025.12.3</QuestPDFVersion>
     </PropertyGroup>
 
     <ItemGroup>
         <!-- App Icon -->
-        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4"/>
+        <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
 
         <!-- Splash Screen -->
-        <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128"/>
+        <MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#512BD4" BaseSize="128,128" />
 
         <!-- Images -->
-        <MauiImage Include="Resources\Images\*"/>
-        <MauiImage Update="Resources\Images\dotnet_bot.svg" BaseSize="168,208"/>
+        <MauiImage Include="Resources\Images\*" />
+        <MauiImage Update="Resources\Images\dotnet_bot.svg" BaseSize="168,208" />
 
         <!-- Custom Fonts -->
-        <MauiFont Include="Resources\Fonts\*"/>
+        <MauiFont Include="Resources\Fonts\*" />
 
         <!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
-        <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)"/>
+        <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)"/>
-        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)"/>
-        <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0"/>
+        <PackageReference Include="Blazor-ApexCharts" Version="6.1.0" />
+        <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="$(MauiVersion)" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.0" />
+        
+        <!-- Entity Framework Core & PostgreSQL -->
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.2" />
+        
+        <!-- Authentication & Security -->
+        <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+        <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="9.0.0" />
+        <PackageReference Include="Plugin.Fingerprint" Version="3.0.0-beta.1" />
+        
+        <!-- Markdown & PDF -->
+        <PackageReference Include="Markdig" Version="0.44.0" />
+        
+        <!-- Configuration - Use version compatible with MAUI 10 -->
+        <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
+        <PackageReference Include="QuestPDF" Version="$(QuestPDFVersion)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Update="$(NuGetPackageRoot)questpdf/$(QuestPDFVersion)/LatoFont/*">
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <PublishFolderType>Resources</PublishFolderType>
+        </Content>
+        <None Update="$(NuGetPackageRoot)questpdf/$(QuestPDFVersion)/LatoFont/*">
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            <PublishFolderType>Resources</PublishFolderType>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+        <MauiAsset Include="$(NuGetPackageRoot)questpdf/$(QuestPDFVersion)/runtimes/osx-arm64/native/libQuestPdfSkia.dylib" LogicalName="libQuestPdfSkia-arm64.dylib" />
+        <MauiAsset Include="$(NuGetPackageRoot)questpdf/$(QuestPDFVersion)/runtimes/osx-x64/native/libQuestPdfSkia.dylib" LogicalName="libQuestPdfSkia-x64.dylib" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Configuration files as embedded resources -->
+        <EmbeddedResource Include="appsettings.json" LogicalName="appsettings.json" />
+        <EmbeddedResource Include="appsettings.Development.json" LogicalName="appsettings.Development.json" Condition="Exists('appsettings.Development.json')" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Remove="appsettings.json" />
+        <Content Remove="appsettings.Development.json" />
+        <None Remove="appsettings.json" />
+        <None Remove="appsettings.Development.json" />
     </ItemGroup>
 
 </Project>

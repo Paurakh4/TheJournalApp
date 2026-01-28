@@ -1,0 +1,53 @@
+@* StatCard.razor - Dashboard Statistics Card *@
+
+<div class="stat-card @AdditionalClasses">
+    <div class="flex items-start justify-between">
+        <div class="flex flex-col gap-1">
+            <span class="stat-label">@Label</span>
+            <span class="stat-value">@Value</span>
+            @if (!string.IsNullOrEmpty(SubLabel))
+            {
+                <span class="text-xs text-text-muted">@SubLabel</span>
+            }
+        </div>
+        
+        @if (IconSvg != null)
+        {
+            <div class="w-12 h-12 rounded-2xl bg-@IconBgColor/20 flex items-center justify-center">
+                <div class="w-6 h-6 text-@IconBgColor">
+                    @IconSvg
+                </div>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(Icon))
+        {
+            <div class="w-12 h-12 rounded-2xl bg-@IconBgColor/20 flex items-center justify-center">
+                <span class="material-symbols-rounded text-2xl text-@IconBgColor">@Icon</span>
+            </div>
+        }
+    </div>
+    
+    @if (ShowTrend && TrendValue != 0)
+    {
+        <div class="flex items-center gap-1 mt-2">
+            <span class="material-symbols-rounded text-sm @(TrendValue > 0 ? "text-mood-positive" : "text-mood-negative")">
+                @(TrendValue > 0 ? "trending_up" : "trending_down")
+            </span>
+            <span class="text-xs @(TrendValue > 0 ? "text-mood-positive" : "text-mood-negative")">
+                @(TrendValue > 0 ? "+" : "")@TrendValue% from last week
+            </span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "0";
+    [Parameter] public string? SubLabel { get; set; }
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public RenderFragment? IconSvg { get; set; }
+    [Parameter] public string IconBgColor { get; set; } = "accent-primary";
+    [Parameter] public bool ShowTrend { get; set; } = false;
+    [Parameter] public int TrendValue { get; set; } = 0;
+    [Parameter] public string? AdditionalClasses { get; set; }
+}

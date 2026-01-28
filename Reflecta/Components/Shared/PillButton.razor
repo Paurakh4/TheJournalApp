@@ -1,0 +1,53 @@
+@* PillButton.razor - Material You Pill-shaped Button Component *@
+
+<button type="@Type" 
+        class="@GetButtonClasses()" 
+        disabled="@Disabled"
+        @onclick="OnClick">
+    @if (!string.IsNullOrEmpty(Icon))
+    {
+        <span class="material-symbols-rounded text-lg">@Icon</span>
+    }
+    @if (!string.IsNullOrEmpty(Text))
+    {
+        <span>@Text</span>
+    }
+    @ChildContent
+</button>
+
+@code {
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public ButtonVariant Variant { get; set; } = ButtonVariant.Primary;
+    [Parameter] public ButtonSize Size { get; set; } = ButtonSize.Medium;
+    [Parameter] public bool Disabled { get; set; } = false;
+    [Parameter] public string Type { get; set; } = "button";
+    [Parameter] public EventCallback<MouseEventArgs> OnClick { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string? AdditionalClasses { get; set; }
+
+    public enum ButtonVariant { Primary, Secondary, Ghost, Danger }
+    public enum ButtonSize { Small, Medium, Large }
+
+    private string GetButtonClasses()
+    {
+        var baseClasses = Variant switch
+        {
+            ButtonVariant.Primary => "btn-pill",
+            ButtonVariant.Secondary => "btn-pill-secondary",
+            ButtonVariant.Ghost => "btn-pill-ghost",
+            ButtonVariant.Danger => "btn-pill bg-mood-negative hover:bg-mood-negative/80",
+            _ => "btn-pill"
+        };
+
+        var sizeClasses = Size switch
+        {
+            ButtonSize.Small => "px-4 py-2 text-xs",
+            ButtonSize.Medium => "px-6 py-3 text-sm",
+            ButtonSize.Large => "px-8 py-4 text-base",
+            _ => "px-6 py-3 text-sm"
+        };
+
+        return $"{baseClasses} {sizeClasses} {AdditionalClasses}".Trim();
+    }
+}

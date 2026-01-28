@@ -1,0 +1,552 @@
+@page "/pin-lock"
+@layout AuthLayout
+
+@using Reflecta.Services.Interfaces
+@using Reflecta.Auth
+@using Microsoft.AspNetCore.Components.Web
+
+@inject ILockService LockService
+@inject IAuthService AuthService
+@inject ReflectaAuthenticationStateProvider AuthStateProvider
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+
+<PageTitle>Unlock - Reflecta</PageTitle>
+
+<div class="min-h-screen flex flex-col items-center justify-center p-6" 
+     @onkeydown="HandleKeyDown" 
+     @onkeydown:preventDefault="@_preventKeyDefault"
+     tabindex="0"
+     @ref="_containerRef">
+    
+    <div class="w-full max-w-sm mx-auto animate-fade-in">
+        @* Logo & Welcome *@
+        <header class="text-center mb-12">
+            <div class="w-24 h-24 mx-auto mb-8 rounded-3xl bg-accent-primary/20 flex items-center justify-center shadow-lg">
+                <img src="assets/reflecta-logo.svg" alt="Reflecta logo" class="w-14 h-14" />
+            </div>
+            @if (LockService.IsTestMode)
+            {
+                <h1 class="text-3xl font-bold text-text-primary mb-3">Test Your PIN</h1>
+                <p class="text-text-secondary text-lg">Enter your PIN to verify it works</p>
+            }
+            else
+            {
+                <h1 class="text-3xl font-bold text-text-primary mb-3">Welcome back</h1>
+                <p class="text-text-secondary text-lg">Enter your PIN to unlock</p>
+            }
+        </header>
+        
+        @* PIN Dots Display *@
+        <div class="flex justify-center gap-5 mb-10">
+            @for (int i = 0; i < 4; i++)
+            {
+                var index = i;
+                <div class="w-5 h-5 rounded-full transition-all duration-200 @(index < _pin.Length ? "bg-accent-primary scale-125 shadow-md shadow-accent-primary/30" : "bg-surface-elevated border-2 border-border-subtle")"></div>
+            }
+        </div>
+        
+        @* Hidden input for keyboard focus (accessibility) *@
+        <input type="password" 
+               class="sr-only" 
+               @ref="_hiddenInputRef"
+               @oninput="HandleHiddenInput"
+               maxlength="4"
+               inputmode="numeric"
+               pattern="[0-9]*"
+               autocomplete="off" />
+        
+        @* Error Message *@
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="bg-mood-negative/20 text-mood-negative px-5 py-4 rounded-2xl text-sm flex items-center justify-center gap-3 mb-8 animate-shake">
+                <span class="material-symbols-rounded text-xl">error</span>
+                <span>@_errorMessage</span>
+            </div>
+        }
+        
+        @* Number Pad *@
+        <div class="flex flex-col items-center gap-4 mb-10">
+            @* Row 1: 1, 2, 3 *@
+            <div class="flex justify-center gap-4">
+                @for (int i = 1; i <= 3; i++)
+                {
+                    var digit = i.ToString();
+                    <button type="button" 
+                            class="btn-numpad" 
+                            @onclick="() => AddDigit(digit)"
+                            disabled="@_isVerifying">
+                        @digit
+                    </button>
+                }
+            </div>
+            
+            @* Row 2: 4, 5, 6 *@
+            <div class="flex justify-center gap-4">
+                @for (int i = 4; i <= 6; i++)
+                {
+                    var digit = i.ToString();
+                    <button type="button" 
+                            class="btn-numpad" 
+                            @onclick="() => AddDigit(digit)"
+                            disabled="@_isVerifying">
+                        @digit
+                    </button>
+                }
+            </div>
+            
+            @* Row 3: 7, 8, 9 *@
+            <div class="flex justify-center gap-4">
+                @for (int i = 7; i <= 9; i++)
+                {
+                    var digit = i.ToString();
+                    <button type="button" 
+                            class="btn-numpad" 
+                            @onclick="() => AddDigit(digit)"
+                            disabled="@_isVerifying">
+                        @digit
+                    </button>
+                }
+            </div>
+            
+            @* Row 4: Biometric, 0, Backspace *@
+            <div class="flex justify-center gap-4">
+                @* Biometric button (if enabled) *@
+                @if (LockService.IsBiometricEnabled)
+                {
+                    <button type="button" 
+                            class="btn-numpad-icon"
+                            @onclick="UnlockWithBiometric"
+                            disabled="@_isVerifying"
+                            title="Use biometric unlock">
+                        <span class="material-symbols-rounded text-2xl">fingerprint</span>
+                    </button>
+                }
+                else
+                {
+                    <div class="w-[72px] h-[72px]"></div>
+                }
+                
+                <button type="button" 
+                        class="btn-numpad"
+                        @onclick='() => AddDigit("0")'
+                        disabled="@_isVerifying">
+                    0
+                </button>
+                
+                @* Backspace *@
+                <button type="button" 
+                        class="btn-numpad-icon"
+                        @onclick="RemoveDigit"
+                        disabled="@_isVerifying || _pin.Length == 0"
+                        title="Delete">
+                    <span class="material-symbols-rounded text-2xl">backspace</span>
+                </button>
+            </div>
+        </div>
+        
+        @* Loading Indicator *@
+        @if (_isVerifying)
+        {
+            <div class="flex justify-center mb-8">
+                <span class="material-symbols-rounded text-4xl text-accent-primary animate-spin">progress_activity</span>
+            </div>
+        }
+        
+        @* Keyboard hint *@
+        <p class="text-center text-xs text-text-muted mb-6">
+            You can also use your keyboard to enter the PIN
+        </p>
+        
+        @* Sign Out Link / Back to Settings (in test mode) *@
+        <p class="text-center text-sm text-text-muted">
+            @if (LockService.IsTestMode)
+            {
+                <button type="button" class="text-accent-primary hover:underline font-medium" @onclick="CancelTest">
+                    Back to Settings
+                </button>
+            }
+            else
+            {
+                <button type="button" class="text-accent-primary hover:underline font-medium" @onclick="SignOut">
+                    Sign in with a different account
+                </button>
+            }
+        </p>
+    </div>
+</div>
+
+<style>
+    .btn-numpad {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background-color: var(--surface-elevated);
+        color: var(--text-primary);
+        font-size: 1.5rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .btn-numpad:hover:not(:disabled) {
+        background-color: var(--surface-elevated-hover);
+        transform: scale(1.08);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .btn-numpad:active:not(:disabled) {
+        transform: scale(0.95);
+    }
+    
+    .btn-numpad:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    
+    .btn-numpad-icon {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background-color: transparent;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s ease;
+        border: none;
+        cursor: pointer;
+    }
+    
+    .btn-numpad-icon:hover:not(:disabled) {
+        background-color: var(--surface-elevated);
+        color: var(--accent-primary);
+        transform: scale(1.08);
+    }
+    
+    .btn-numpad-icon:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+    }
+    
+    @@keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        20%, 60% { transform: translateX(-6px); }
+        40%, 80% { transform: translateX(6px); }
+    }
+    
+    .animate-shake {
+        animation: shake 0.4s ease-in-out;
+    }
+    
+    /* Screen reader only class for hidden input */
+    .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+</style>
+
+@code {
+    private string _pin = "";
+    private string? _errorMessage;
+    private bool _isVerifying;
+    private int _attemptCount;
+    private bool _preventKeyDefault;
+    private const int MaxPinLength = 4;
+    private const int MaxAttempts = 5;
+    
+    private ElementReference _containerRef;
+    private ElementReference _hiddenInputRef;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        // If in test mode, skip all the normal checks - we're just testing PIN
+        if (LockService.IsTestMode)
+        {
+            // Ensure lock service has user context for PIN verification
+            if (AuthService.IsAuthenticated && AuthService.CurrentUserId.HasValue)
+            {
+                // Don't call InitializeAsync as it might change lock state
+                // Just ensure we have the user ID set
+            }
+            return;
+        }
+        
+        // Check if we should even be here
+        var hasValidSession = await AuthStateProvider.HasValidSessionAsync();
+        
+        if (!hasValidSession)
+        {
+            // Session expired, go to login
+            NavigationManager.NavigateTo("/login", replace: true);
+            return;
+        }
+        
+        // Check if this is a fresh login (user just authenticated with password)
+        if (LockService.IsFreshLogin)
+        {
+            // Fresh login - user just entered password, don't require PIN
+            NavigationManager.NavigateTo("/", replace: true);
+            return;
+        }
+
+        // Ensure lock service is initialized with user ID
+        if (AuthService.IsAuthenticated && AuthService.CurrentUserId.HasValue)
+        {
+            await LockService.InitializeAsync(AuthService.CurrentUserId.Value);
+        }
+        else
+        {
+            var storedUserId = await AuthStateProvider.GetStoredUserIdForPinUnlockAsync();
+            if (storedUserId.HasValue)
+            {
+                await LockService.InitializeAsync(storedUserId.Value);
+            }
+            else
+            {
+                // No stored user, go to login
+                NavigationManager.NavigateTo("/login", replace: true);
+                return;
+            }
+        }
+        
+        // Check again after initialization
+        if (LockService.IsFreshLogin)
+        {
+            NavigationManager.NavigateTo("/", replace: true);
+            return;
+        }
+        
+        if (!LockService.IsLocked && !LockService.IsPinLockEnabled)
+        {
+            // Not locked and no PIN enabled, go to home
+            NavigationManager.NavigateTo("/", replace: true);
+            return;
+        }
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Focus the container for keyboard input
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("eval", "document.querySelector('[tabindex=\"0\"]')?.focus()");
+            }
+            catch
+            {
+                // Ignore if JS interop fails
+            }
+        }
+    }
+    
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (_isVerifying)
+            return;
+        
+        // Handle numeric keys (both number row and numpad)
+        if (e.Key.Length == 1 && char.IsDigit(e.Key[0]))
+        {
+            _preventKeyDefault = true;
+            AddDigit(e.Key);
+        }
+        // Handle backspace
+        else if (e.Key == "Backspace")
+        {
+            _preventKeyDefault = true;
+            RemoveDigit();
+        }
+        else
+        {
+            _preventKeyDefault = false;
+        }
+    }
+    
+    private void HandleHiddenInput(ChangeEventArgs e)
+    {
+        // This handles input from mobile keyboards or paste events
+        var value = e.Value?.ToString() ?? "";
+        
+        // Extract only digits
+        foreach (var c in value)
+        {
+            if (char.IsDigit(c) && _pin.Length < MaxPinLength)
+            {
+                _ = AddDigitAsync(c.ToString());
+            }
+        }
+    }
+    
+    private async Task AddDigitAsync(string digit)
+    {
+        if (_pin.Length >= MaxPinLength || _isVerifying)
+            return;
+            
+        _pin += digit;
+        _errorMessage = null;
+        
+        // Auto-verify when PIN reaches 4 digits
+        if (_pin.Length >= MaxPinLength)
+        {
+            await VerifyPin();
+        }
+        
+        StateHasChanged();
+    }
+    
+    private async void AddDigit(string digit)
+    {
+        await AddDigitAsync(digit);
+    }
+    
+    private void RemoveDigit()
+    {
+        if (_pin.Length > 0 && !_isVerifying)
+        {
+            _pin = _pin[..^1];
+            _errorMessage = null;
+            StateHasChanged();
+        }
+    }
+    
+    private async Task VerifyPin()
+    {
+        if (_isVerifying)
+            return;
+            
+        _isVerifying = true;
+        _errorMessage = null;
+        StateHasChanged();
+        
+        try
+        {
+            var success = await LockService.UnlockWithPinAsync(_pin);
+            
+            if (success)
+            {
+                _attemptCount = 0;
+                
+                // Check if this is test mode
+                if (LockService.IsTestMode)
+                {
+                    LockService.DisableTestMode();
+                    NavigationManager.NavigateTo("/settings?pinTestSuccess=true", replace: true);
+                    return;
+                }
+                
+                // Extend the session on successful unlock
+                await AuthStateProvider.ExtendSessionAsync();
+                
+                // Clear the fresh login flag if set
+                LockService.ClearFreshLoginFlag();
+                
+                NavigationManager.NavigateTo("/", replace: true);
+            }
+            else
+            {
+                _attemptCount++;
+                _pin = "";
+                
+                // In test mode, don't sign out on too many attempts
+                if (LockService.IsTestMode)
+                {
+                    _errorMessage = "Incorrect PIN. Try again.";
+                }
+                else if (_attemptCount >= MaxAttempts)
+                {
+                    _errorMessage = "Too many attempts. Please sign in again.";
+                    await Task.Delay(1500);
+                    await SignOut();
+                }
+                else
+                {
+                    _errorMessage = $"Incorrect PIN. {MaxAttempts - _attemptCount} attempts remaining.";
+                }
+            }
+        }
+        catch
+        {
+            _errorMessage = "An error occurred. Please try again.";
+            _pin = "";
+        }
+        finally
+        {
+            _isVerifying = false;
+            StateHasChanged();
+        }
+    }
+    
+    private async Task UnlockWithBiometric()
+    {
+        if (_isVerifying)
+            return;
+            
+        _isVerifying = true;
+        _errorMessage = null;
+        StateHasChanged();
+        
+        try
+        {
+            var success = await LockService.UnlockWithBiometricAsync();
+            
+            if (success)
+            {
+                // Check if this is test mode
+                if (LockService.IsTestMode)
+                {
+                    LockService.DisableTestMode();
+                    NavigationManager.NavigateTo("/settings?biometricTestSuccess=true", replace: true);
+                    return;
+                }
+                
+                // Extend the session on successful unlock
+                await AuthStateProvider.ExtendSessionAsync();
+                
+                // Clear the fresh login flag if set
+                LockService.ClearFreshLoginFlag();
+                
+                NavigationManager.NavigateTo("/", replace: true);
+            }
+            else
+            {
+                _errorMessage = "Biometric authentication failed. Use your PIN.";
+            }
+        }
+        catch
+        {
+            _errorMessage = "Biometric not available. Use your PIN.";
+        }
+        finally
+        {
+            _isVerifying = false;
+            StateHasChanged();
+        }
+    }
+    
+    private async Task SignOut()
+    {
+        LockService.Reset();
+        await AuthStateProvider.LogoutAsync();
+        NavigationManager.NavigateTo("/login", replace: true);
+    }
+    
+    private void CancelTest()
+    {
+        LockService.DisableTestMode();
+        NavigationManager.NavigateTo("/settings", replace: true);
+    }
+}

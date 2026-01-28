@@ -1,0 +1,28 @@
+@using Markdig
+
+<div class="prose prose-invert max-w-none prose-headings:text-text-primary prose-p:text-text-primary prose-a:text-accent-primary prose-strong:text-text-primary prose-em:text-text-secondary prose-ul:text-text-primary prose-ol:text-text-primary prose-li:text-text-primary prose-blockquote:border-l-accent-primary prose-blockquote:text-text-secondary prose-code:text-accent-secondary prose-code:bg-surface-container prose-code:px-1 prose-code:rounded">
+    @((MarkupString)_renderedHtml)
+</div>
+
+@code {
+    [Parameter] public string Content { get; set; } = "";
+    
+    private string _renderedHtml = "";
+    
+    private static readonly MarkdownPipeline _pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .UseSoftlineBreakAsHardlineBreak()
+        .Build();
+    
+    protected override void OnParametersSet()
+    {
+        if (!string.IsNullOrEmpty(Content))
+        {
+            _renderedHtml = Markdown.ToHtml(Content, _pipeline);
+        }
+        else
+        {
+            _renderedHtml = "";
+        }
+    }
+}

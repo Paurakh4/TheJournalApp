@@ -3,3 +3,18 @@ obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+
+# IDE
+.idea/
+.vs/
+*.user
+*.suo
+
+# macOS
+.DS_Store
+
+# Node
+**/node_modules/
+
+# Development configuration (contains sensitive data)
+appsettings.Development.json

@@ -1,0 +1,494 @@
+@page "/calendar"
+
+@inject IJournalService JournalService
+@inject IAnalyticsService AnalyticsService
+@inject IAuthService AuthService
+@inject ILockService LockService
+@inject IStreakService StreakService
+@inject NavigationManager NavigationManager
+
+<PageTitle>Calendar - Reflecta</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="flex items-center justify-center h-64">
+        <span class="material-symbols-rounded text-4xl text-accent-primary animate-spin">progress_activity</span>
+    </div>
+}
+else
+{
+    <div class="space-y-6">
+        @* Header *@
+        <header class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold text-text-primary">Calendar</h1>
+                <p class="text-text-secondary">View your journaling history</p>
+            </div>
+            
+            <a href="/entry/new" class="btn-pill">
+                <span class="material-symbols-rounded">add</span>
+                New Entry
+            </a>
+        </header>
+        
+        @* Month Navigation *@
+        <div class="card-elevated">
+            <div class="flex items-center justify-between mb-6">
+                <button class="btn-pill-ghost p-2" @onclick="PreviousMonth">
+                    <span class="material-symbols-rounded">chevron_left</span>
+                </button>
+                
+                <h2 class="text-xl font-semibold text-text-primary">
+                    @_currentMonth.ToString("MMMM yyyy")
+                </h2>
+                
+                <button class="btn-pill-ghost p-2" @onclick="NextMonth">
+                    <span class="material-symbols-rounded">chevron_right</span>
+                </button>
+            </div>
+            
+            @* Legend *@
+            <div class="flex flex-wrap items-center gap-4 mb-6 text-xs text-text-muted">
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded-lg bg-mood-positive/30"></div>
+                    Positive
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded-lg bg-mood-neutral/30"></div>
+                    Neutral
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded-lg bg-mood-negative/30"></div>
+                    Negative
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded-lg border-2 border-dashed border-red-400/60"></div>
+                    Streak Broken
+                </div>
+            </div>
+            
+            @* Calendar Grid *@
+            <div class="grid grid-cols-7 gap-1 md:gap-2">
+                @* Day Headers *@
+                @foreach (var day in new[] { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" })
+                {
+                    <div class="text-center text-xs font-medium text-text-muted py-2">
+                        @day
+                    </div>
+                }
+                
+                @* Calendar Days *@
+                @foreach (var day in _calendarDays)
+                {
+                    <button class="@GetDayClasses(day)"
+                            disabled="@(!day.IsCurrentMonth)"
+                            @onclick="() => SelectDay(day)">
+                        <span class="relative z-10">@day.Day</span>
+                        @if (day.Entry != null)
+                        {
+                            <span class="absolute bottom-1 text-[10px]">@day.Entry.PrimaryMood?.Emoji</span>
+                        }
+                    </button>
+                }
+            </div>
+        </div>
+        
+        @* Selected Day Details *@
+        @if (_selectedDay != null && _selectedDay.Entry != null)
+        {
+            <div class="card-elevated animate-slide-up">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-text-primary">
+                        @_selectedDay.Date.ToString("dddd, MMMM d")
+                    </h3>
+                    <span class="text-sm text-text-muted">@_selectedDay.Entry.WordCount words</span>
+                </div>
+                
+                <a href="/entry/@_selectedDay.Entry.Id" 
+                   class="flex items-center gap-4 p-4 rounded-2xl bg-surface-container hover:bg-surface-elevated-hover transition-all">
+                    <span class="text-2xl">@_selectedDay.Entry.PrimaryMood?.Emoji</span>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="font-medium text-text-primary truncate">@(_selectedDay.Entry.Title ?? "Untitled Entry")</h4>
+                        <p class="text-sm text-text-muted truncate">@GetPreview(_selectedDay.Entry.Content)</p>
+                    </div>
+                    <span class="material-symbols-rounded text-text-muted">chevron_right</span>
+                </a>
+            </div>
+        }
+        else if (_selectedDay != null && _selectedDay.IsCurrentMonth && _selectedDay.Date <= DateTime.Today)
+        {
+            <div class="card-elevated animate-slide-up">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-text-primary">
+                        @_selectedDay.Date.ToString("dddd, MMMM d")
+                    </h3>
+                </div>
+                <div class="text-center py-4">
+                    <p class="text-text-muted mb-4">No entry for this day</p>
+                    @if (_selectedDay.IsToday)
+                    {
+                        <a href="/entry/new" class="btn-pill">
+                            <span class="material-symbols-rounded">add</span>
+                            Write Today's Entry
+                        </a>
+                    }
+                </div>
+            </div>
+        }
+        
+        @* Monthly Stats *@
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="card-elevated text-center">
+                <span class="stat-value text-2xl">@_monthlyStats.TotalEntries</span>
+                <span class="stat-label">Entries</span>
+            </div>
+            <div class="card-elevated text-center">
+                <span class="stat-value text-2xl">@FormatNumber(_monthlyStats.TotalWords)</span>
+                <span class="stat-label">Words</span>
+            </div>
+            <div class="card-elevated text-center">
+                <span class="stat-value text-2xl">@_monthlyStats.ActiveDays</span>
+                <span class="stat-label">Active Days</span>
+            </div>
+            <div class="card-elevated text-center">
+                <span class="stat-value text-2xl">@(_monthlyStats.TopMood?.Emoji ?? "—")</span>
+                <span class="stat-label">Top Mood</span>
+            </div>
+        </div>
+
+        @* Missed Days Section *@
+        <div class="card-elevated">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-rounded text-amber-400">event_busy</span>
+                    <h3 class="text-lg font-semibold text-text-primary">Missed Days</h3>
+                </div>
+                @if (_missedDays.Count > 7)
+                {
+                    <button class="btn-pill-ghost text-sm" @onclick="ToggleMissedDaysExpanded">
+                        <span class="material-symbols-rounded text-base">@(_missedDaysExpanded ? "expand_less" : "expand_more")</span>
+                        @(_missedDaysExpanded ? "Collapse" : "Show All")
+                    </button>
+                }
+            </div>
+
+            @if (_missedDays.Count == 0)
+            {
+                <p class="text-sm text-text-muted">No missed days for this month.</p>
+            }
+            else
+            {
+                <p class="text-sm text-text-muted mb-4">
+                    You missed @_missedDays.Count @(_missedDays.Count == 1 ? "day" : "days") this month.
+                </p>
+
+                <div class="flex flex-wrap gap-2">
+                    @foreach (var missedDay in (_missedDaysExpanded ? _missedDays : _missedDays.Take(7)))
+                    {
+                        <div class="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-dashed border-amber-400/40 rounded-xl text-sm">
+                            <span class="material-symbols-rounded text-amber-400 text-base">event_busy</span>
+                            <span class="text-text-secondary">@missedDay.ToString("MMM d")</span>
+                        </div>
+                    }
+                    @if (!_missedDaysExpanded && _missedDays.Count > 7)
+                    {
+                        <div class="flex items-center px-3 py-2 text-sm text-text-muted">
+                            +@(_missedDays.Count - 7) more
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+        
+        @* Missed Days (Streak Breakers) Section *@
+        @if (_streakBreakingDays.Any())
+        {
+            <div class="card-elevated">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-rounded text-red-400">heart_broken</span>
+                        <h3 class="text-lg font-semibold text-text-primary">Streak Breakers</h3>
+                    </div>
+                    <button class="btn-pill-ghost text-sm" @onclick="ToggleStreakBreakersExpanded">
+                        <span class="material-symbols-rounded text-base">@(_streakBreakersExpanded ? "expand_less" : "expand_more")</span>
+                        @(_streakBreakersExpanded ? "Collapse" : "Show All")
+                    </button>
+                </div>
+                
+                <p class="text-sm text-text-muted mb-4">
+                    @(_streakBreakingDays.Count == 1 ? "This day" : "These days") broke your journaling streak this month.
+                </p>
+                
+                <div class="flex flex-wrap gap-2">
+                    @foreach (var missedDay in (_streakBreakersExpanded ? _streakBreakingDays : _streakBreakingDays.Take(5)))
+                    {
+                        <div class="flex items-center gap-2 px-3 py-2 bg-red-500/10 border border-dashed border-red-400/40 rounded-xl text-sm">
+                            <span class="material-symbols-rounded text-red-400 text-base">event_busy</span>
+                            <span class="text-text-secondary">@missedDay.ToString("MMM d")</span>
+                        </div>
+                    }
+                    @if (!_streakBreakersExpanded && _streakBreakingDays.Count > 5)
+                    {
+                        <div class="flex items-center px-3 py-2 text-sm text-text-muted">
+                            +@(_streakBreakingDays.Count - 5) more
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private bool _isLoading = true;
+    private DateTime _currentMonth = DateTime.Now;
+    private CalendarDay? _selectedDay;
+    private List<CalendarDay> _calendarDays = new();
+    private Dictionary<DateOnly, JournalEntry> _monthEntries = new();
+    private MonthlyStats _monthlyStats = new();
+    private List<DateOnly> _missedDays = new();
+    private bool _missedDaysExpanded = false;
+    private List<DateOnly> _streakBreakingDays = new();
+    private HashSet<DateOnly> _streakBreakingDaysSet = new();
+    private bool _streakBreakersExpanded = false;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        if (LockService.IsLocked)
+        {
+            NavigationManager.NavigateTo("/pin-lock", replace: true);
+            return;
+        }
+
+        if (!AuthService.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+        
+        await LoadCalendarDataAsync();
+        _isLoading = false;
+    }
+    
+    private async Task LoadCalendarDataAsync()
+    {
+        var userId = AuthService.CurrentUserId!.Value;
+        
+        // Get entries for the current month
+        var startDate = new DateOnly(_currentMonth.Year, _currentMonth.Month, 1);
+        var endDate = startDate.AddMonths(1).AddDays(-1);
+        
+        var filter = new EntryFilterDto
+        {
+            StartDate = startDate,
+            EndDate = endDate,
+            PageSize = 31 // Max days in month
+        };
+        
+        var entriesResult = await JournalService.GetEntriesAsync(userId, filter);
+        _monthEntries = entriesResult.Items.ToDictionary(e => e.EntryDate);
+        
+        // Get monthly stats
+        var monthDistribution = await AnalyticsService.GetMoodDistributionAsync(userId, startDate, endDate);
+        var topMood = await AnalyticsService.GetMostFrequentMoodAsync(userId, startDate, endDate);
+        
+        _monthlyStats = new MonthlyStats
+        {
+            TotalEntries = entriesResult.TotalCount,
+            TotalWords = entriesResult.Items.Sum(e => e.WordCount),
+            ActiveDays = entriesResult.Items.Select(e => e.EntryDate).Distinct().Count(),
+            TopMood = topMood
+        };
+        
+        // Load streak-breaking days for this month
+        _streakBreakingDays = await StreakService.GetStreakBreakingDaysAsync(userId, startDate, endDate);
+        _streakBreakingDaysSet = _streakBreakingDays.ToHashSet();
+
+        // Build missed days list (days without entries, up to today)
+        _missedDays = BuildMissedDays(startDate, endDate);
+        _missedDaysExpanded = false;
+        _streakBreakersExpanded = false;
+        
+        GenerateCalendar();
+    }
+
+    private List<DateOnly> BuildMissedDays(DateOnly startDate, DateOnly endDate)
+    {
+        var missedDays = new List<DateOnly>();
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var rangeEnd = endDate.DayNumber < today.DayNumber ? endDate : today;
+
+        if (rangeEnd.DayNumber < startDate.DayNumber)
+        {
+            return missedDays;
+        }
+
+        for (var date = startDate; date.DayNumber <= rangeEnd.DayNumber; date = date.AddDays(1))
+        {
+            if (!_monthEntries.ContainsKey(date))
+            {
+                missedDays.Add(date);
+            }
+        }
+
+        return missedDays;
+    }
+    
+    private void GenerateCalendar()
+    {
+        _calendarDays.Clear();
+        
+        var firstDay = new DateTime(_currentMonth.Year, _currentMonth.Month, 1);
+        var lastDay = firstDay.AddMonths(1).AddDays(-1);
+        
+        // Add days from previous month to fill the first week
+        var startDayOfWeek = (int)firstDay.DayOfWeek;
+        for (var i = startDayOfWeek - 1; i >= 0; i--)
+        {
+            var date = firstDay.AddDays(-i - 1);
+            _calendarDays.Add(new CalendarDay { Day = date.Day, Date = date, IsCurrentMonth = false });
+        }
+        
+        // Add current month days
+        for (var day = 1; day <= lastDay.Day; day++)
+        {
+            var date = new DateTime(_currentMonth.Year, _currentMonth.Month, day);
+            var dateOnly = DateOnly.FromDateTime(date);
+            
+            var calendarDay = new CalendarDay
+            {
+                Day = day,
+                Date = date,
+                IsCurrentMonth = true,
+                IsToday = date.Date == DateTime.Today,
+                IsMissedDay = _streakBreakingDaysSet.Contains(dateOnly)
+            };
+            
+            // Check if there's an entry for this day
+            if (_monthEntries.TryGetValue(dateOnly, out var entry))
+            {
+                calendarDay.Entry = entry;
+            }
+            
+            _calendarDays.Add(calendarDay);
+        }
+        
+        // Add days from next month to complete the grid
+        var remainingDays = 42 - _calendarDays.Count; // 6 rows * 7 days
+        for (var i = 1; i <= remainingDays; i++)
+        {
+            var date = lastDay.AddDays(i);
+            _calendarDays.Add(new CalendarDay { Day = i, Date = date, IsCurrentMonth = false });
+        }
+    }
+    
+    private string GetDayClasses(CalendarDay day)
+    {
+        var classes = new List<string> { "relative", "aspect-square", "rounded-2xl", "flex", "items-center", "justify-center", "text-sm", "font-medium", "transition-all" };
+        
+        if (!day.IsCurrentMonth)
+        {
+            classes.Add("text-text-muted/30");
+            classes.Add("cursor-not-allowed");
+        }
+        else if (day.IsToday)
+        {
+            classes.Add("ring-2");
+            classes.Add("ring-accent-primary");
+            classes.Add("text-accent-primary");
+            classes.Add("hover:bg-surface-elevated");
+        }
+        else if (day.Entry != null)
+        {
+            var moodClass = day.Entry.PrimaryMood?.Category switch
+            {
+                MoodCategory.Positive => "bg-mood-positive/30 text-mood-positive hover:bg-mood-positive/40",
+                MoodCategory.Negative => "bg-mood-negative/30 text-mood-negative hover:bg-mood-negative/40",
+                _ => "bg-mood-neutral/30 text-mood-neutral hover:bg-mood-neutral/40"
+            };
+            classes.Add(moodClass);
+        }
+        else if (day.IsMissedDay)
+        {
+            // Streak-breaking day styling - dashed border with subtle red background
+            classes.Add("border-2");
+            classes.Add("border-dashed");
+            classes.Add("border-red-400/60");
+            classes.Add("bg-red-500/10");
+            classes.Add("text-red-400");
+            classes.Add("hover:bg-red-500/20");
+        }
+        else
+        {
+            classes.Add("text-text-secondary");
+            classes.Add("hover:bg-surface-elevated");
+        }
+        
+        if (_selectedDay?.Date == day.Date)
+        {
+            classes.Add("ring-2");
+            classes.Add("ring-accent-primary");
+        }
+        
+        return string.Join(" ", classes);
+    }
+    
+    private void SelectDay(CalendarDay day)
+    {
+        if (!day.IsCurrentMonth) return;
+        _selectedDay = day;
+    }
+    
+    private async Task PreviousMonth()
+    {
+        _currentMonth = _currentMonth.AddMonths(-1);
+        _selectedDay = null;
+        await LoadCalendarDataAsync();
+    }
+    
+    private async Task NextMonth()
+    {
+        _currentMonth = _currentMonth.AddMonths(1);
+        _selectedDay = null;
+        await LoadCalendarDataAsync();
+    }
+    
+    private string GetPreview(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return "";
+        return content.Length > 100 ? content.Substring(0, 100) + "..." : content;
+    }
+    
+    private string FormatNumber(int number)
+    {
+        return number >= 1000 ? $"{number / 1000.0:F1}k" : number.ToString();
+    }
+    
+    private void ToggleMissedDaysExpanded()
+    {
+        _missedDaysExpanded = !_missedDaysExpanded;
+    }
+
+    private void ToggleStreakBreakersExpanded()
+    {
+        _streakBreakersExpanded = !_streakBreakersExpanded;
+    }
+    
+    private class CalendarDay
+    {
+        public int Day { get; set; }
+        public DateTime Date { get; set; }
+        public bool IsCurrentMonth { get; set; }
+        public bool IsToday { get; set; }
+        public bool IsMissedDay { get; set; }
+        public JournalEntry? Entry { get; set; }
+    }
+    
+    private class MonthlyStats
+    {
+        public int TotalEntries { get; set; }
+        public int TotalWords { get; set; }
+        public int ActiveDays { get; set; }
+        public Mood? TopMood { get; set; }
+    }
+}

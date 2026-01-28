@@ -17,7 +17,7 @@
 }
 else
 {
-<div class="max-w-2xl mx-auto space-y-6">
+<div class="max-w-5xl mx-auto space-y-6">
     @* Header *@
     <header>
         <h1 class="text-2xl md:text-3xl font-bold text-text-primary">Settings</h1>
@@ -210,6 +210,16 @@ else
             
             @if (_hasPIN)
             {
+                <button class="flex items-center gap-3 w-full p-4 rounded-2xl bg-accent-primary/10 hover:bg-accent-primary/20 transition-colors text-left"
+                        @onclick="TestPinAndBiometric">
+                    <span class="material-symbols-rounded text-xl text-accent-primary">verified_user</span>
+                    <div class="flex-1">
+                        <span class="font-medium text-accent-primary">Test PIN & Biometric</span>
+                        <p class="text-xs text-text-muted">Verify your PIN and biometric work correctly</p>
+                    </div>
+                    <span class="material-symbols-rounded text-accent-primary">chevron_right</span>
+                </button>
+                
                 <button class="flex items-center gap-3 w-full p-4 rounded-2xl bg-mood-negative/10 hover:bg-mood-negative/20 transition-colors text-left"
                         @onclick="RemovePIN">
                     <span class="material-symbols-rounded text-xl text-mood-negative">delete</span>
@@ -218,6 +228,14 @@ else
                         <p class="text-xs text-text-muted">Disable PIN protection</p>
                     </div>
                 </button>
+            }
+            
+            @if (!string.IsNullOrEmpty(_testResultMessage))
+            {
+                <div class="p-4 rounded-2xl @(_testResultIsSuccess ? "bg-accent-primary/20 text-accent-primary" : "bg-mood-negative/20 text-mood-negative") text-sm flex items-center gap-3 animate-fade-in">
+                    <span class="material-symbols-rounded text-xl">@(_testResultIsSuccess ? "check_circle" : "error")</span>
+                    <span>@_testResultMessage</span>
+                </div>
             }
             
             <button class="flex items-center gap-3 w-full p-4 rounded-2xl bg-surface-container hover:bg-surface-elevated-hover transition-colors text-left"
@@ -435,6 +453,10 @@ else
     private bool _showDeleteModal = false;
     private bool _isSaving = false;
     
+    // Test PIN result message
+    private string? _testResultMessage;
+    private bool _testResultIsSuccess;
+    
     protected override async Task OnInitializedAsync()
     {
         if (LockService.IsLocked)
@@ -447,6 +469,21 @@ else
         {
             NavigationManager.NavigateTo("/login");
             return;
+        }
+        
+        // Check for test result query parameters using simple string parsing
+        var currentUri = NavigationManager.Uri;
+        if (currentUri.Contains("pinTestSuccess=true"))
+        {
+            _testResultMessage = "PIN verified successfully!";
+            _testResultIsSuccess = true;
+            ClearTestResultAfterDelay();
+        }
+        else if (currentUri.Contains("biometricTestSuccess=true"))
+        {
+            _testResultMessage = "Biometric verified successfully!";
+            _testResultIsSuccess = true;
+            ClearTestResultAfterDelay();
         }
         
         await LoadSettingsAsync();
@@ -605,6 +642,22 @@ else
             _lockTimeout = 0;
             await LockService.RefreshSettingsAsync();
         }
+    }
+    
+    private void TestPinAndBiometric()
+    {
+        _testResultMessage = null;
+        LockService.EnableTestMode();
+        NavigationManager.NavigateTo("/pin-lock");
+    }
+    
+    private void ClearTestResultAfterDelay()
+    {
+        _ = Task.Delay(5000).ContinueWith(_ => 
+        {
+            _testResultMessage = null;
+            InvokeAsync(StateHasChanged);
+        });
     }
     
     private async Task SaveProfile()

@@ -1,0 +1,160 @@
+@* TagPicker.razor - Tag Selection Chip Component *@
+@using Reflecta.Models
+
+<div class="flex flex-col gap-3 @AdditionalClasses">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <label class="text-sm font-medium text-text-secondary">@Label</label>
+    }
+    
+    @* Add new tag input *@
+    @if (AllowCreate)
+    {
+        <div class="flex gap-2">
+            <div class="flex-1 relative">
+                <input type="text" 
+                       class="input-solid-sm w-full"
+                       placeholder="Add a new tag..."
+                       @bind="_newTagName"
+                       @bind:event="oninput"
+                       @onkeypress="HandleKeyPress" />
+            </div>
+            <button type="button" 
+                    class="btn-pill-secondary px-4 py-2"
+                    disabled="@(string.IsNullOrWhiteSpace(_newTagName) || _isCreating)"
+                    @onclick="AddNewTag">
+                @if (_isCreating)
+                {
+                    <span class="material-symbols-rounded text-lg animate-spin">progress_activity</span>
+                }
+                else
+                {
+                    <span class="material-symbols-rounded text-lg">add</span>
+                }
+            </button>
+        </div>
+        @if (!string.IsNullOrEmpty(_createError))
+        {
+            <span class="text-xs text-mood-negative">@_createError</span>
+        }
+    }
+    
+    @* Tag chips *@
+    <div class="flex flex-wrap gap-2">
+        @foreach (var tag in AvailableTags)
+        {
+            <button type="button"
+                    class="@GetTagClasses(tag)"
+                    @onclick="() => ToggleTag(tag)">
+                <span class="material-symbols-rounded text-sm">@(SelectedTagIds.Contains(tag.Id) ? "check" : "tag")</span>
+                <span>@tag.Name</span>
+            </button>
+        }
+        
+        @if (!AvailableTags.Any())
+        {
+            <span class="text-sm text-text-muted">No tags available. Create one above!</span>
+        }
+    </div>
+    
+    @if (SelectedTagIds.Any())
+    {
+        <div class="flex items-center gap-2 text-xs text-text-muted">
+            <span>Selected: @SelectedTagIds.Count</span>
+            <button type="button" class="text-accent-primary hover:underline" @onclick="ClearAll">
+                Clear all
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public List<Tag> AvailableTags { get; set; } = new();
+    [Parameter] public List<Guid> SelectedTagIds { get; set; } = new();
+    [Parameter] public EventCallback<List<Guid>> SelectedTagIdsChanged { get; set; }
+    [Parameter] public bool AllowCreate { get; set; } = true;
+    [Parameter] public string? AdditionalClasses { get; set; }
+    [Parameter] public EventCallback<Tag> OnTagCreated { get; set; }
+
+    private string _newTagName = "";
+    private bool _isCreating = false;
+    private string? _createError = null;
+
+    private string GetTagClasses(Tag tag)
+    {
+        var isSelected = SelectedTagIds.Contains(tag.Id);
+        return $"tag-pill {(isSelected ? "selected" : "")}";
+    }
+
+    private async Task ToggleTag(Tag tag)
+    {
+        if (SelectedTagIds.Contains(tag.Id))
+        {
+            SelectedTagIds.Remove(tag.Id);
+        }
+        else
+        {
+            SelectedTagIds.Add(tag.Id);
+        }
+        
+        await SelectedTagIdsChanged.InvokeAsync(SelectedTagIds);
+    }
+
+    private async Task AddNewTag()
+    {
+        if (string.IsNullOrWhiteSpace(_newTagName)) return;
+
+        _createError = null;
+        _isCreating = true;
+        StateHasChanged();
+
+        try
+        {
+            var tagName = _newTagName.Trim();
+            
+            // Check if tag already exists
+            var existingTag = AvailableTags.FirstOrDefault(t => 
+                t.Name.Equals(tagName, StringComparison.OrdinalIgnoreCase));
+            
+            if (existingTag != null)
+            {
+                // Just select it if not already selected
+                if (!SelectedTagIds.Contains(existingTag.Id))
+                {
+                    SelectedTagIds.Add(existingTag.Id);
+                    await SelectedTagIdsChanged.InvokeAsync(SelectedTagIds);
+                }
+                _newTagName = "";
+            }
+            else
+            {
+                // Trigger parent to create the tag via service
+                await OnTagCreated.InvokeAsync(new Tag { Name = tagName });
+                _newTagName = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            _createError = ex.Message;
+        }
+        finally
+        {
+            _isCreating = false;
+        }
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await AddNewTag();
+        }
+    }
+
+    private async Task ClearAll()
+    {
+        SelectedTagIds.Clear();
+        await SelectedTagIdsChanged.InvokeAsync(SelectedTagIds);
+    }
+}

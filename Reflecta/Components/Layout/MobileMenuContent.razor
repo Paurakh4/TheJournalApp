@@ -1,0 +1,48 @@
+@* MobileMenuContent.razor - Mobile Slide-out Menu Content *@
+
+@if (OnNavigate.HasDelegate)
+{
+    <nav class="flex flex-col gap-2">
+        <a href="/" class="flex items-center gap-4 px-4 py-3 rounded-2xl hover:bg-surface-elevated-hover transition-all" @onclick="OnNavigate">
+            <span class="material-symbols-rounded text-xl text-accent-primary">home</span>
+            <span class="font-medium">Dashboard</span>
+        </a>
+        
+        <a href="/entries" class="flex items-center gap-4 px-4 py-3 rounded-2xl hover:bg-surface-elevated-hover transition-all" @onclick="OnNavigate">
+            <span class="material-symbols-rounded text-xl text-text-secondary">article</span>
+            <span class="font-medium">My Entries</span>
+        </a>
+        
+        <a href="/entry/new" class="flex items-center gap-4 px-4 py-3 rounded-2xl hover:bg-surface-elevated-hover transition-all" @onclick="OnNavigate">
+            <span class="material-symbols-rounded text-xl text-text-secondary">edit_note</span>
+            <span class="font-medium">New Entry</span>
+        </a>
+        
+        <a href="/calendar" class="flex items-center gap-4 px-4 py-3 rounded-2xl hover:bg-surface-elevated-hover transition-all" @onclick="OnNavigate">
+            <span class="material-symbols-rounded text-xl text-text-secondary">calendar_month</span>
+            <span class="font-medium">Calendar</span>
+        </a>
+        
+        <a href="/analytics" class="flex items-center gap-4 px-4 py-3 rounded-2xl hover:bg-surface-elevated-hover transition-all" @onclick="OnNavigate">
+            <span class="material-symbols-rounded text-xl text-text-secondary">analytics</span>
+            <span class="font-medium">Insights</span>
+        </a>
+        
+        <div class="divider my-2"></div>
+        
+        <a href="/settings" class="flex items-center gap-4 px-4 py-3 rounded-2xl hover:bg-surface-elevated-hover transition-all" @onclick="OnNavigate">
+            <span class="material-symbols-rounded text-xl text-text-secondary">settings</span>
+            <span class="font-medium">Settings</span>
+        </a>
+        
+        <a href="/export" class="flex items-center gap-4 px-4 py-3 rounded-2xl hover:bg-surface-elevated-hover transition-all" @onclick="OnNavigate">
+            <span class="material-symbols-rounded text-xl text-text-secondary">download</span>
+            <span class="font-medium">Export Data</span>
+        </a>
+    </nav>
+}
+
+@code {
+    [Parameter]
+    public EventCallback OnNavigate { get; set; }
+}

@@ -1,0 +1,40 @@
+@* EmptyState.razor - Empty State Component *@
+
+<div class="empty-state @AdditionalClasses">
+    <div class="empty-state-icon">
+        <span class="material-symbols-rounded">@Icon</span>
+    </div>
+    
+    <h3 class="empty-state-title">@Title</h3>
+    
+    @if (!string.IsNullOrEmpty(Description))
+    {
+        <p class="empty-state-description">@Description</p>
+    }
+    
+    @if (!string.IsNullOrEmpty(ActionText) && !string.IsNullOrEmpty(ActionUrl))
+    {
+        <div class="mt-4">
+            <a href="@ActionUrl" class="btn-pill">
+                <span class="material-symbols-rounded">arrow_back</span>
+                @ActionText
+            </a>
+        </div>
+    }
+    else if (ChildContent != null)
+    {
+        <div class="mt-4">
+            @ChildContent
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Icon { get; set; } = "sentiment_neutral";
+    [Parameter] public string Title { get; set; } = "Nothing here yet";
+    [Parameter] public string? Description { get; set; }
+    [Parameter] public string? ActionText { get; set; }
+    [Parameter] public string? ActionUrl { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string? AdditionalClasses { get; set; }
+}

@@ -1,0 +1,499 @@
+@page "/entries"
+
+@inject IJournalService JournalService
+@inject IMoodService MoodService
+@inject ITagService TagService
+@inject IAuthService AuthService
+@inject ILockService LockService
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>My Entries - Reflecta</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="flex items-center justify-center h-64">
+        <span class="material-symbols-rounded text-4xl text-accent-primary animate-spin">progress_activity</span>
+    </div>
+}
+else
+{
+    <div class="space-y-6">
+        @* Header *@
+        <header class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold text-text-primary">My Entries</h1>
+                <p class="text-text-secondary">@_totalEntries entries total</p>
+            </div>
+            
+            <a href="/entry/new" class="btn-pill w-full md:w-auto justify-center">
+                <span class="material-symbols-rounded">add</span>
+                New Entry
+            </a>
+        </header>
+
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="bg-mood-negative/20 text-mood-negative px-4 py-3 rounded-2xl text-sm flex items-center gap-2">
+                <span class="material-symbols-rounded text-lg">error</span>
+                @_errorMessage
+            </div>
+        }
+        
+        @* Search & Filters *@
+        <div class="flex flex-col md:flex-row gap-4">
+            @* Search Bar *@
+            <div class="flex-1 search-bar">
+                <span class="material-symbols-rounded text-text-muted">search</span>
+                <input type="text" 
+                       placeholder="Search entries by title, content, or tags..." 
+                       class="text-sm"
+                       @bind="_searchQuery"
+                       @bind:event="oninput"
+                       @bind:after="ApplyFiltersAsync" />
+                @if (!string.IsNullOrEmpty(_searchQuery))
+                {
+                    <button type="button" class="text-text-muted hover:text-text-primary" @onclick="ClearSearch">
+                        <span class="material-symbols-rounded text-lg">close</span>
+                    </button>
+                }
+            </div>
+            
+            @* Filter Buttons *@
+            <div class="flex gap-2">
+                <button class="btn-pill-secondary px-4" @onclick="ToggleFilters">
+                    <span class="material-symbols-rounded text-lg">filter_list</span>
+                    Filters
+                    @if (_activeFiltersCount > 0)
+                    {
+                        <span class="w-5 h-5 rounded-full bg-accent-primary text-text-inverse text-xs flex items-center justify-center">
+                            @_activeFiltersCount
+                        </span>
+                    }
+                </button>
+                
+                <button class="btn-pill-ghost p-3" 
+                        title="Toggle Favorites"
+                        @onclick="ToggleFavoritesFilter">
+                    <span class="material-symbols-rounded text-lg @(_filterFavorites ? "text-accent-primary" : "")">
+                        @(_filterFavorites ? "favorite" : "favorite_border")
+                    </span>
+                </button>
+            </div>
+        </div>
+        
+        @* Expanded Filters *@
+        @if (_showFilters)
+        {
+            <div class="card-elevated animate-scale-in">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold text-text-secondary">Filters</h3>
+                    @if (_activeFiltersCount > 0)
+                    {
+                        <button class="text-xs text-accent-primary hover:underline" @onclick="ClearFilters">
+                            Clear all
+                        </button>
+                    }
+                </div>
+                
+                <div class="grid md:grid-cols-3 gap-6">
+                    @* Date Range *@
+                    <div class="space-y-2">
+                        <label class="text-xs text-text-muted font-medium">Date Range</label>
+                        <div class="flex gap-2">
+                            <input type="date" 
+                                   class="input-solid-sm flex-1" 
+                                   @bind="_filterDateFrom"
+                                   @bind:after="ApplyFiltersAsync" />
+                            <span class="self-center text-text-muted">to</span>
+                            <input type="date" 
+                                   class="input-solid-sm flex-1" 
+                                   @bind="_filterDateTo"
+                                   @bind:after="ApplyFiltersAsync" />
+                        </div>
+                    </div>
+                    
+                    @* Mood Filter *@
+                    <div class="space-y-2">
+                        <label class="text-xs text-text-muted font-medium">Mood</label>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach (var mood in _availableMoods.Take(6))
+                            {
+                                <button type="button"
+                                        class="@GetMoodFilterClass(mood)"
+                                        @onclick="() => ToggleMoodFilter(mood)">
+                                    <span>@mood.Emoji</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    
+                    @* Tag Filter *@
+                    <div class="space-y-2">
+                        <label class="text-xs text-text-muted font-medium">Tags</label>
+                        <div class="flex flex-wrap gap-2">
+                            @foreach (var tag in _availableTags.Take(6))
+                            {
+                                <button type="button"
+                                        class="@GetTagFilterClass(tag)"
+                                        @onclick="() => ToggleTagFilter(tag)">
+                                    @tag.Name
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+        
+        @* Active Filter Pills *@
+        @if (_activeFiltersCount > 0)
+        {
+            <div class="flex flex-wrap gap-2">
+                @if (_selectedMoodFilter != null)
+                {
+                    <span class="inline-flex items-center gap-1 px-3 py-1 rounded-pill bg-surface-elevated text-sm">
+                        @_selectedMoodFilter.Emoji @_selectedMoodFilter.Name
+                        <button type="button" class="ml-1 hover:text-mood-negative" @onclick="ClearMoodFilter">
+                            <span class="material-symbols-rounded text-sm">close</span>
+                        </button>
+                    </span>
+                }
+                @foreach (var tag in _selectedTagFilters)
+                {
+                    <span class="inline-flex items-center gap-1 px-3 py-1 rounded-pill bg-surface-elevated text-sm">
+                        @tag.Name
+                        <button type="button" class="ml-1 hover:text-mood-negative" @onclick="() => ToggleTagFilter(tag)">
+                            <span class="material-symbols-rounded text-sm">close</span>
+                        </button>
+                    </span>
+                }
+                @if (_filterFavorites)
+                {
+                    <span class="inline-flex items-center gap-1 px-3 py-1 rounded-pill bg-surface-elevated text-sm">
+                        ❤️ Favorites only
+                        <button type="button" class="ml-1 hover:text-mood-negative" @onclick="ToggleFavoritesFilter">
+                            <span class="material-symbols-rounded text-sm">close</span>
+                        </button>
+                    </span>
+                }
+            </div>
+        }
+        
+        @* Entries List *@
+        @if (_entries.Any())
+        {
+            <div class="grid md:grid-cols-2 gap-4">
+                @foreach (var entry in _entries)
+                {
+                    <EntryCard 
+                        Id="@entry.Id"
+                        Date="@entry.CreatedAt"
+                        UpdatedAt="@entry.UpdatedAt"
+                        Title="@(entry.Title ?? "Untitled Entry")"
+                        Preview="@GetPreview(entry.Content)"
+                        Mood="@entry.PrimaryMood"
+                        Tags="@GetEntryTags(entry)"
+                        WordCount="@entry.WordCount"
+                        OnClick="@NavigateToEntry" />
+                }
+            </div>
+            
+            @* Pagination *@
+            @if (_totalPages > 1)
+            {
+                <nav class="flex items-center justify-center gap-2 mt-8">
+                    <button class="btn-pill-ghost p-2" 
+                            disabled="@(_currentPage == 1)"
+                            @onclick="() => GoToPage(_currentPage - 1)">
+                        <span class="material-symbols-rounded">chevron_left</span>
+                    </button>
+                    
+                    @for (var i = 1; i <= Math.Min(_totalPages, 5); i++)
+                    {
+                        var pageNum = i;
+                        <button class="@GetPageButtonClass(pageNum)"
+                                @onclick="() => GoToPage(pageNum)">
+                            @pageNum
+                        </button>
+                    }
+                    
+                    @if (_totalPages > 5)
+                    {
+                        <span class="text-text-muted">...</span>
+                        <button class="@GetPageButtonClass(_totalPages)"
+                                @onclick="() => GoToPage(_totalPages)">
+                            @_totalPages
+                        </button>
+                    }
+                    
+                    <button class="btn-pill-ghost p-2"
+                            disabled="@(_currentPage == _totalPages)"
+                            @onclick="() => GoToPage(_currentPage + 1)">
+                        <span class="material-symbols-rounded">chevron_right</span>
+                    </button>
+                </nav>
+            }
+        }
+        else
+        {
+            <EmptyState 
+                Icon="@(string.IsNullOrEmpty(_searchQuery) && _activeFiltersCount == 0 ? "edit_note" : "search_off")"
+                Title="@(string.IsNullOrEmpty(_searchQuery) && _activeFiltersCount == 0 ? "No entries yet" : "No entries found")"
+                Description="@(string.IsNullOrEmpty(_searchQuery) && _activeFiltersCount == 0 ? "Start journaling to see your entries here" : "Try adjusting your search or filters")">
+                @if (string.IsNullOrEmpty(_searchQuery) && _activeFiltersCount == 0)
+                {
+                    <a href="/entry/new" class="btn-pill">
+                        <span class="material-symbols-rounded">add</span>
+                        Write Your First Entry
+                    </a>
+                }
+                else
+                {
+                    <button class="btn-pill-secondary" @onclick="ClearAllFilters">
+                        <span class="material-symbols-rounded">refresh</span>
+                        Clear Filters
+                    </button>
+                }
+            </EmptyState>
+        }
+    </div>
+}
+
+@code {
+    private bool _isLoading = true;
+    private string? _errorMessage;
+    private string _searchQuery = "";
+    private bool _showFilters = false;
+    private int _totalEntries = 0;
+    private int _currentPage = 1;
+    private int _totalPages = 1;
+    private int _pageSize = 10;
+    
+    private DateTime? _filterDateFrom;
+    private DateTime? _filterDateTo;
+    private Mood? _selectedMoodFilter;
+    private List<Tag> _selectedTagFilters = new();
+    private bool _filterFavorites = false;
+    
+    private List<Mood> _availableMoods = new();
+    private List<Tag> _availableTags = new();
+    private List<JournalEntry> _entries = new();
+    
+    private int _activeFiltersCount => 
+        (_selectedMoodFilter != null ? 1 : 0) + 
+        _selectedTagFilters.Count + 
+        (_filterDateFrom.HasValue ? 1 : 0) + 
+        (_filterDateTo.HasValue ? 1 : 0) +
+        (_filterFavorites ? 1 : 0);
+    
+    protected override async Task OnInitializedAsync()
+    {
+        if (LockService.IsLocked)
+        {
+            NavigationManager.NavigateTo("/pin-lock", replace: true);
+            return;
+        }
+
+        var activeUserId = await GetActiveUserIdAsync();
+        if (!activeUserId.HasValue)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+
+        try
+        {
+            await LoadInitialDataAsync();
+        }
+        catch (Exception)
+        {
+            _errorMessage = "An error occurred while loading entries. Please try again.";
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+    
+    private async Task LoadInitialDataAsync()
+    {
+        var userId = await GetActiveUserIdAsync();
+        if (!userId.HasValue)
+            throw new InvalidOperationException("User not authenticated");
+        
+        // Load moods and tags
+        var moodsTask = MoodService.GetAllMoodsAsync();
+        var tagsTask = TagService.GetAllTagsAsync(userId.Value);
+        
+        await Task.WhenAll(moodsTask, tagsTask);
+        
+        _availableMoods = await moodsTask;
+        _availableTags = await tagsTask;
+        
+        // Load entries
+        await LoadEntriesAsync();
+    }
+    
+    private async Task LoadEntriesAsync()
+    {
+        try
+        {
+            _errorMessage = null;
+            var userId = await GetActiveUserIdAsync();
+            if (!userId.HasValue)
+                throw new InvalidOperationException("User not authenticated");
+            
+            var filter = new EntryFilterDto
+            {
+                SearchText = string.IsNullOrWhiteSpace(_searchQuery) ? null : _searchQuery,
+                MoodId = _selectedMoodFilter?.Id,
+                TagIds = _selectedTagFilters.Any() ? _selectedTagFilters.Select(t => t.Id).ToList() : null,
+                StartDate = _filterDateFrom.HasValue ? DateOnly.FromDateTime(_filterDateFrom.Value) : null,
+                EndDate = _filterDateTo.HasValue ? DateOnly.FromDateTime(_filterDateTo.Value) : null,
+                IsFavorite = _filterFavorites ? true : null,
+                Page = _currentPage,
+                PageSize = _pageSize
+            };
+            
+            var result = await JournalService.GetEntriesAsync(userId.Value, filter);
+            
+            _entries = result.Items;
+            _totalEntries = result.TotalCount;
+            _totalPages = result.TotalPages;
+        }
+        catch (Exception)
+        {
+            _errorMessage = "Unable to load entries. Please try again.";
+            _entries = new();
+            _totalEntries = 0;
+            _totalPages = 1;
+        }
+    }
+    
+    private async Task<Guid?> GetActiveUserIdAsync()
+    {
+        try
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var idValue = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(idValue) && Guid.TryParse(idValue, out var id))
+            {
+                return id;
+            }
+        }
+        catch
+        {
+        }
+        return AuthService.CurrentUserId;
+    }
+    
+    private async Task ApplyFiltersAsync()
+    {
+        _currentPage = 1;
+        await LoadEntriesAsync();
+    }
+    
+    private void ToggleFilters() => _showFilters = !_showFilters;
+    
+    private async Task ToggleFavoritesFilter()
+    {
+        _filterFavorites = !_filterFavorites;
+        await ApplyFiltersAsync();
+    }
+    
+    private async Task ClearSearch()
+    {
+        _searchQuery = "";
+        await ApplyFiltersAsync();
+    }
+    
+    private async Task ClearFilters()
+    {
+        _selectedMoodFilter = null;
+        _selectedTagFilters.Clear();
+        _filterDateFrom = null;
+        _filterDateTo = null;
+        _filterFavorites = false;
+        await ApplyFiltersAsync();
+    }
+    
+    private async Task ClearAllFilters()
+    {
+        _searchQuery = "";
+        await ClearFilters();
+    }
+    
+    private async Task ToggleMoodFilter(Mood mood)
+    {
+        if (_selectedMoodFilter?.Id == mood.Id)
+            _selectedMoodFilter = null;
+        else
+            _selectedMoodFilter = mood;
+        
+        await ApplyFiltersAsync();
+    }
+    
+    private async Task ClearMoodFilter()
+    {
+        _selectedMoodFilter = null;
+        await ApplyFiltersAsync();
+    }
+    
+    private async Task ToggleTagFilter(Tag tag)
+    {
+        if (_selectedTagFilters.Any(t => t.Id == tag.Id))
+            _selectedTagFilters.RemoveAll(t => t.Id == tag.Id);
+        else
+            _selectedTagFilters.Add(tag);
+        
+        await ApplyFiltersAsync();
+    }
+    
+    private string GetMoodFilterClass(Mood mood)
+    {
+        var isSelected = _selectedMoodFilter?.Id == mood.Id;
+        return isSelected 
+            ? "w-10 h-10 rounded-2xl flex items-center justify-center text-lg bg-accent-primary/20 ring-2 ring-accent-primary"
+            : "w-10 h-10 rounded-2xl flex items-center justify-center text-lg bg-surface-elevated-hover hover:bg-surface-elevated-active transition-all";
+    }
+    
+    private string GetTagFilterClass(Tag tag)
+    {
+        var isSelected = _selectedTagFilters.Any(t => t.Id == tag.Id);
+        return isSelected ? "tag-pill selected" : "tag-pill";
+    }
+    
+    private string GetPageButtonClass(int page)
+    {
+        return page == _currentPage 
+            ? "w-10 h-10 rounded-2xl bg-accent-primary text-text-inverse font-medium"
+            : "w-10 h-10 rounded-2xl bg-surface-elevated text-text-secondary hover:bg-surface-elevated-hover";
+    }
+    
+    private async Task GoToPage(int page)
+    {
+        _currentPage = Math.Clamp(page, 1, _totalPages);
+        await LoadEntriesAsync();
+    }
+    
+    private string GetPreview(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return "";
+        // Return raw content - EntryCard handles markdown rendering
+        return content.Length > 200 ? content.Substring(0, 200) : content;
+    }
+    
+    private List<Tag> GetEntryTags(JournalEntry entry)
+    {
+        return entry.EntryTags.Select(et => et.Tag).Where(t => t != null).ToList()!;
+    }
+    
+    private void NavigateToEntry(Guid? id)
+    {
+        if (id.HasValue)
+        {
+            NavigationManager.NavigateTo($"/entry/{id}");
+        }
+    }
+}

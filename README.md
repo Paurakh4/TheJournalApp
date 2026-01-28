@@ -1,5 +1,7 @@
 # Reflecta
 
+![Reflecta Home Screen](Reflecta/Resources/Images/screenshot-home.png)
+
 A cross-platform journaling + mood tracking app built with **.NET MAUI Blazor Hybrid**.
 
 Reflecta focuses on a simple daily writing flow, mood selection, tags, streaks, analytics, and export (HTML/Markdown/PDF/Text).

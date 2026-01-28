@@ -190,3 +190,5 @@ On startup, demo entries are seeded **only if** a demo user exists:
 ## License
 
 No license file is included in this repository yet. Add a `LICENSE` file if you plan to distribute this project.
+
+NOTE: This project was developed as part of my college coursework, and I have decided to make it open-source. You are welcome to use, modify, or build upon it in any way you see fit.
